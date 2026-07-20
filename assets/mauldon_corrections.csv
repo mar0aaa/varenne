@@ -1,0 +1,5 @@
+site,fam,mu_nb,mu_biased,R,factor,sd_circles,sd_lognorm,N_circles,method
+VARENNE,fam1,3.190831,2.98554,21.7093,1.068762,1.658358,0.5044,14,mauldon_priest_first_order
+VARENNE,fam2,2.363591,2.247275,21.7093,1.051758,0.552161,0.4045,14,mauldon_priest_first_order
+VARENNE,fam3,2.424539,2.302443,21.7093,1.053029,0.874018,0.3048,14,mauldon_priest_first_order
+VARENNE,fam4,4.185327,3.844853,21.7093,1.088553,0.803365,0.6419,12,mauldon_priest_first_order

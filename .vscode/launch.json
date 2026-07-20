@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run varenne.py (full pipeline)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/varenne.py",
+            "python": "/home/av16310/projects/bctotal/.venv/bin/python3",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run main.py (menu)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/home/av16310/projects/bctotal/.venv/bin/python3",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run PERSISTENCE.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/PERSISTENCE.py",
+            "python": "/home/av16310/projects/bctotal/.venv/bin/python3",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run SPACING.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/SPACING.py",
+            "python": "/home/av16310/projects/bctotal/.venv/bin/python3",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
