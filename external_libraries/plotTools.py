@@ -25,10 +25,10 @@ def blockVolumeDistribution(x):
 	plt.xlabel('Block Volume (m3)', fontweight='bold')
 	plt.ylabel('% Volume Smaller Than', fontweight='bold')
 	plt.title('Block Volume Distribution', fontweight='bold')
-	plt.grid(True)
-	plt.gca().xaxis.grid(True)
 	plt.xscale('log')
-	plt.xlim(x[0],x[len(x)-1])
+	plt.xlim(1e-4, x[len(x)-1])
+	plt.grid(True, which="major", color="gray", linewidth=0.7, alpha=0.5)
+	plt.grid(True, which="minor", color="gray", linewidth=0.5, alpha=0.3, linestyle=":")
 	plt.plot(x,y);
 	
 def blockShapeDiagram(x,y,z,perc=1.0):
