@@ -4,7 +4,7 @@ report_whiteboard.py
 Professional scientific paper–style report generator.
 Format: GeoQuébec / journal two-column layout using ReportLab Platypus.
 
-Outputs  →  outputs/BCTOTAL/09_report/scientific_report.pdf
+Outputs  →  outputs/VARENNE/09_report/scientific_report.pdf
 """
 
 import os
@@ -20,16 +20,11 @@ from run_site import SITE_CONFIGS
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SITES = ["BC1LEFT", "BC1RIGHT", "BC2", "BC3LEFT", "BC3RIGHT", "BCTOTAL"]
+SITES = ["VARENNE"]
 
 # RGB tuples (0–1) for site row colouring
 _SITE_RGB = {
-    "BC1LEFT":  (0.871, 0.918, 0.945),
-    "BC1RIGHT": (0.886, 0.937, 0.855),
-    "BC2":      (1.000, 0.949, 0.800),
-    "BC3LEFT":  (0.988, 0.894, 0.839),
-    "BC3RIGHT": (0.957, 0.800, 1.000),
-    "BCTOTAL":  (0.851, 0.851, 0.851),
+    "VARENNE":  (0.871, 0.918, 0.945),
 }
 
 
@@ -76,12 +71,7 @@ def _build_blockometry_df():
 def _build_trace_df():
     assets = os.path.join(SCRIPT_DIR, "assets")
     site_info = [
-        ("BC1LEFT",  SITE_CONFIGS["BC1LEFT"]["trace_name"],  False, SITE_CONFIGS["BC1LEFT"]["region_filter"]),
-        ("BC1RIGHT", SITE_CONFIGS["BC1RIGHT"]["trace_name"], False, SITE_CONFIGS["BC1RIGHT"]["region_filter"]),
-        ("BC2",      SITE_CONFIGS["BC2"]["trace_name"],      False, SITE_CONFIGS["BC2"]["region_filter"]),
-        ("BC3LEFT",  SITE_CONFIGS["BC3LEFT"]["trace_name"],  False, SITE_CONFIGS["BC3LEFT"]["region_filter"]),
-        ("BC3RIGHT", SITE_CONFIGS["BC3RIGHT"]["trace_name"], False, SITE_CONFIGS["BC3RIGHT"]["region_filter"]),
-        ("BCTOTAL",  "all bc corrected fam.xlsx",            True,  None),
+        ("VARENNE",  SITE_CONFIGS["VARENNE"]["trace_name"],  False, SITE_CONFIGS["VARENNE"]["region_filter"]),
     ]
     cc = {}
     for site, fname, is_xl, rfilt in site_info:
@@ -128,12 +118,7 @@ def _build_trace_df():
 
 def _build_calib_df():
     csv_map = {
-        "BC1LEFT":  "outputs/BC1LEFT/02_calibration/P32_calibrated_summary.csv",
-        "BC1RIGHT": "outputs/BC1RIGHT/02_calibration/P32_calibrated_summary.csv",
-        "BC2":      "outputs/BC2/02_calibration/P32_calibrated_summary.csv",
-        "BC3LEFT":  "outputs/BC3LEFT/02_calibration/P32_calibrated_summary.csv",
-        "BC3RIGHT": "outputs/BC3RIGHT/02_calibration/P32_calibrated_summary.csv",
-        "BCTOTAL":  "outputs/BCTOTAL/02_calibration/P32_calibrated_summary_BCTOTAL.csv",
+        "VARENNE":  "outputs/VARENNE/02_calibration/P32_calibrated_summary.csv",
     }
     rows = []
     for site, rel in csv_map.items():
@@ -156,44 +141,202 @@ def _build_calib_df():
     return pd.DataFrame(rows)
 
 
-def _make_fig24(out_path: str) -> bool:
-    """Build a 2×2 grid of CC-vs-DFN persistence comparisons for BCTOTAL."""
+def _generate_persistence_survival_plot(out_path: str) -> bool:
+    """Generate combined persistence survival plot (all families) with lognormal fits."""
     import matplotlib.pyplot as plt
-    import matplotlib.image as mpimg
-
-    fam_files = sorted([
-        os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "07_persistence", fn)
-        for fn in os.listdir(os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "07_persistence"))
-        if fn.startswith("persistence_comparison_") and fn.endswith(".png")
-    ])
-    if not fam_files:
+    from scipy import stats
+    
+    persist_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "07_persistence")
+    if not os.path.isdir(persist_dir):
         return False
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    
+    for idx, fam_num in enumerate([1, 2, 3, 4]):
+        csv_path = os.path.join(persist_dir, f"persistence_radii_fam{fam_num}.csv")
+        if not os.path.exists(csv_path):
+            continue
+        
+        df = pd.read_csv(csv_path)
+        if 'diameter_m' not in df.columns:
+            continue
+        
+        diameters = pd.to_numeric(df['diameter_m'], errors='coerce').dropna()
+        diameters = diameters[diameters > 0].sort_values().to_numpy()
+        
+        if len(diameters) == 0:
+            continue
+        
+        n = len(diameters)
+        
+        # Empirical survival (% >= x)
+        occurrence = 100 * (1 - np.arange(n) / n)
+        
+        # Fit lognormal distribution
+        try:
+            shape, loc, scale = stats.lognorm.fit(diameters, floc=0)
+            mu = np.log(scale)
+            sigma = shape
+            
+            # Generate fitted curve
+            x_fit = np.logspace(np.log10(diameters.min()), np.log10(diameters.max()), 200)
+            y_fit = 100 * stats.lognorm.sf(x_fit, shape, loc, scale)
+            
+            # Plot fitted curve (solid)
+            ax.plot(x_fit, y_fit, color=colors[idx], linewidth=2,
+                   label=f'fam{fam_num} LOGN (μ={mu:.2f}, σ={sigma:.2f}, n={n})')
+            # Plot empirical curve (dashed)
+            ax.plot(diameters, occurrence, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
+        except:
+            # Fallback if fitting fails
+            ax.plot(diameters, occurrence, '--', color=colors[idx], linewidth=2,
+                   label=f'fam{fam_num} (n={n})')
+    
+    ax.set_xlabel('Persistence / trace length (m)', fontsize=11)
+    ax.set_ylabel('Occurrence (%) (≥ x)', fontsize=11)
+    ax.set_title('Occurrence (%) vs Persistence — VARENNE (all families)\nEmpirical (dashed) + Lognormal fit (solid)', 
+                fontsize=11, fontweight='bold')
+    ax.set_xscale('log')
+    ax.grid(True, alpha=0.3, which='both')
+    ax.legend(loc='best', fontsize=8)
+    ax.set_ylim(0, 100)
+    
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    return True
 
-    n = len(fam_files)
-    ncols = 2
-    nrows = int(np.ceil(n / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 5 * nrows))
-    axes = np.array(axes).ravel()
 
-    for i, fp in enumerate(fam_files):
-        img = mpimg.imread(fp)
-        axes[i].imshow(img)
-        axes[i].axis("off")
-        label = os.path.basename(fp).replace("persistence_comparison_", "").replace(".png", "")
-        axes[i].set_title(label, fontsize=9, pad=4)
+def _generate_spacing_survival_plot(out_path: str) -> bool:
+    """Generate combined spacing survival plot (all families) from trace data."""
+    import matplotlib.pyplot as plt
+    from scipy import stats
+    
+    # Load trace data
+    trace_path = os.path.join(SCRIPT_DIR, "assets", "varenne_traces.csv")
+    if not os.path.exists(trace_path):
+        return False
+    
+    df = pd.read_csv(trace_path)
+    if "REGION" in df.columns:
+        df = df[df["REGION"] == "VARENNE"]
+    
+    fc = next((c for c in df.columns if c.lower() in ("fam", "family")), None)
+    lc = next((c for c in df.columns if c.lower() in ("length", "corrected length")), None)
+    
+    if not fc or not lc:
+        return False
+    
+    df[lc] = pd.to_numeric(df[lc], errors="coerce")
+    df = df.dropna(subset=[fc, lc])
+    df = df[df[lc] > 0]
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    
+    for idx, fam_num in enumerate([1, 2, 3, 4]):
+        fam_data = df[df[fc] == f'fam{fam_num}']
+        if len(fam_data) == 0:
+            continue
+        
+        spacings = fam_data[lc].sort_values()
+        n = len(spacings)
+        
+        # Empirical survival
+        occurrence = 100 * (1 - np.arange(n) / n)
+        
+        # Fit lognormal
+        try:
+            shape, loc, scale = stats.lognorm.fit(spacings, floc=0)
+            mu = np.log(scale)
+            sigma = shape
+            
+            x_fit = np.logspace(np.log10(spacings.min()), np.log10(spacings.max()), 200)
+            y_fit = 100 * stats.lognorm.sf(x_fit, shape, loc, scale)
+            
+            ax.plot(x_fit, y_fit, color=colors[idx], linewidth=2,
+                   label=f'fam{fam_num} LOGN (μ={mu:.2f}, σ={sigma:.2f}, n={n})')
+            ax.plot(spacings, occurrence, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
+        except:
+            ax.plot(spacings, occurrence, color=colors[idx], linewidth=2,
+                   label=f'fam{fam_num} (n={n})')
+    
+    ax.set_xlabel('Perpendicular spacing S (m)', fontsize=11)
+    ax.set_ylabel('Occurrence (%) (≥ x)', fontsize=11)
+    ax.set_title('Occurrence (%) vs Spacing — VARENNE (all families)\nEmpirical (dashed) + Lognormal fit (solid)', 
+                fontsize=11, fontweight='bold')
+    ax.set_xscale('log')
+    ax.grid(True, alpha=0.3, which='both')
+    ax.legend(loc='best', fontsize=8)
+    ax.set_ylim(0, 100)
+    
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    return True
 
-    for j in range(i + 1, len(axes)):
-        axes[j].axis("off")
 
-    fig.tight_layout(pad=1.5)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+def _generate_blockometry_curve(out_path: str) -> bool:
+    """
+    Generate logarithmic block volume distribution curve for VARENNE site.
+    
+    Creates a cumulative probability plot on a logarithmic x-axis.
+    
+    Args:
+        out_path: Path to save the figure (PNG format)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    import matplotlib.pyplot as plt
+    
+    # Load block volumes
+    vol_path = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "05_block_volumes",
+                           "VIZ_calibrated_VARENNE_BlockVolumes_clean.txt")
+    
+    if not os.path.exists(vol_path):
+        print(f"⚠️  Block volumes not found: {vol_path}")
+        return False
+    
+    vols = np.loadtxt(vol_path, ndmin=1).ravel()
+    vols = vols[np.isfinite(vols) & (vols > 0)]
+    
+    if vols.size == 0:
+        print(f"⚠️  No valid block volumes found")
+        return False
+    
+    # Sort volumes and compute cumulative probability (volume-weighted)
+    vols_sorted = np.sort(vols)
+    cumulative_volumes = np.cumsum(vols_sorted)
+    cumulative_probability = 100.0 * cumulative_volumes / cumulative_volumes[-1]
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+    
+    # Plot VARENNE curve
+    ax.plot(vols_sorted, cumulative_probability, 
+           color='#FF6B35', linewidth=2.5, 
+           label=f'VARENNE (n={len(vols)})')
+    
+    ax.set_xscale('log')
+    ax.set_xlim(1e-4, 1e3)
+    ax.set_ylim(0, 100)
+    ax.set_xlabel('Block Volume (m³)', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Cumulative Probability (%)', fontsize=11, fontweight='bold')
+    ax.set_title('Block Volume Distribution — VARENNE', fontsize=12, fontweight='bold')
+    ax.grid(True, which='both', linestyle='--', alpha=0.4)
+    ax.legend(loc='lower right', fontsize=10)
+    
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
     return True
 
 
 # ── main report generator ─────────────────────────────────────────────────────
 
-def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
+def generate_scientific_report(project_name: str = "VARENNE") -> str:
     """Generate a clean results-only scientific paper PDF (GeoQuébec style)."""
 
     from reportlab.lib.pagesizes import A4
@@ -208,7 +351,7 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
         NextPageTemplate,
     )
 
-    report_dir = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "09_report")
+    report_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "09_report")
     os.makedirs(report_dir, exist_ok=True)
     out_pdf = os.path.join(report_dir, "scientific_report.pdf")
 
@@ -273,7 +416,7 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
             PageTemplate(id="results_2col",  frames=[frame_l, frame_r], onPage=_footer),
             PageTemplate(id="appendix_1col", frames=[frame_main], onPage=_footer),
         ],
-        title="DFN Calibration and Blockometry Results for the BCTOTAL Model",
+        title="DFN Calibration and Blockometry Results for the VARENNE Model",
         leftMargin=ML, rightMargin=MR, topMargin=MT, bottomMargin=MB,
     )
 
@@ -370,26 +513,24 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
     trace_df  = _build_trace_df()
     calib_df  = _build_calib_df()
 
-    annex_csv = os.path.join(SCRIPT_DIR, "outputs", "combined",
-                             "DFN_fracture_characteristics_BC_sites.csv")
+    annex_csv = os.path.join(SCRIPT_DIR, "outputs", "VARENNE",
+                             "DFN_fracture_characteristics_VARENNE.csv")
     annex_df  = pd.read_csv(annex_csv) if os.path.exists(annex_csv) else pd.DataFrame()
 
     # ── figure paths ──────────────────────────────────────────────────────────
     FIGSITE = _first_existing([
-        os.path.join(SCRIPT_DIR, "assets", "bcpic.png"),
+        os.path.join(SCRIPT_DIR, "assets", "varenne_pic.png"),
     ])
-    FIG2 = _first_existing([
-        os.path.join(SCRIPT_DIR, "outputs", "PERSISTENCE",
-                     "persistence_survival_BC_TOTAL_all_families.png"),
-    ])
-    FIG3 = _first_existing([
-        os.path.join(SCRIPT_DIR, "outputs", "SPACING",
-                     "spacing_survival_BC_TOTAL_all_families.png"),
-    ])
-    FIG4 = _first_existing([
-        os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "COMBINED_block_volume_overlay.png"),
-        os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "COMBINED_block_volume_grid.png"),
-    ])
+    
+    # Generate combined persistence and spacing survival plots
+    FIG_PERSIST = os.path.join(report_dir, "persistence_survival_combined.png")
+    FIG_SPACING = os.path.join(report_dir, "spacing_survival_combined.png")
+    FIG_BLOCKVOL = os.path.join(report_dir, "blockometry_curve.png")
+    _generate_persistence_survival_plot(FIG_PERSIST)
+    _generate_spacing_survival_plot(FIG_SPACING)
+    _generate_blockometry_curve(FIG_BLOCKVOL)
+    
+    FIG4 = FIG_BLOCKVOL  # Use the generated blockometry curve
 
     # ── story ─────────────────────────────────────────────────────────────────
     S_ = []
@@ -402,7 +543,7 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
     # ── TITLE (full-width template) ──────────────────────────────────────────
     add(
         Spacer(1, 0.06 * cm),
-        Paragraph("DFN Calibration and Blockometry Results for the BCTOTAL Model", sTitle),
+        Paragraph("DFN Calibration and Blockometry Results for the VARENNE Model", sTitle),
         HR(),
     )
 
@@ -410,12 +551,12 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
     add(Paragraph("1. Site Description", sSec))
 
     site_desc_txt = (
-        "The study area is located along Autoroute 138 in the Charlevoix region of Québec, "
-        "Canada. Three bedrock outcrops (BC-1, BC-2, BC-3) were investigated along a highway "
-        "road cut exposing the local jointed rock mass. BC-1 and BC-3 each comprise two "
-        "sub-faces (left and right), while BC-2 is treated as a single exposure. "
-        "A combined BCTOTAL dataset pools all sites for regional-scale DFN calibration and "
-        "blockometry analysis."
+        "The VARENNE site is located in the Charlevoix region of Québec, "
+        "Canada. The site was investigated for fracture network characterization "
+        "and blockometry analysis. Four fracture families (fam1, fam2, fam3, fam4) "
+        "were identified from field mapping data. The DFN calibration was performed "
+        "using P21 targets derived from trace length measurements, followed by "
+        "block volume distribution and shape analysis."
     )
     # Site description: compact text left, small image right
     TEXT_W = BODY_W * 0.52
@@ -424,7 +565,7 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
     site_side = Table(
         [[Paragraph(site_desc_txt, sBody),
           [_img(FIGSITE, IMG_W, site_img_h),
-           Paragraph("Figure 1. Location of the investigated study sites along Highway 138.", sFigCap)]
+           Paragraph("Figure 1. Location of the VARENNE study site.", sFigCap)]
          ]],
         colWidths=[TEXT_W, IMG_W],
         style=TableStyle([
@@ -493,41 +634,40 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
         cd = calib_df
         cw3 = None
 
-    # Band row 1: Fig 2 (left) | Fig 4 (right)
+    # Band row 1: Fig 2 (left) | Fig 3 (right)
     add(_band(
-        [_img(FIG2, COL_W, FIG_H),
-         _cap("Figure 2. Persistence survival distributions for the pooled BCTOTAL dataset.")],
-        [_img(FIG4, COL_W, FIG_H),
-         _cap("Figure 4. Block Volume Distributions Overlay — BC sites.")],
+        [_img(FIG_PERSIST, COL_W, FIG_H),
+         _cap("Figure 2. Persistence survival curves — all families.")],
+        [_img(FIG_SPACING, COL_W, FIG_H),
+         _cap("Figure 3. Spacing survival curves with lognormal fits — all families.")],
     ))
     add(_sp())
 
-    # Band row 2: Fig 3 (left) | Table 2 (right)
+    # Band row 2: Table 1 (left) | Table 2 (right)
+    t1_block = ([_cap("Table 1. Blockometry percentile summary — VARENNE."),
+                 _center_tbl(_df_table(t1_df, cw1, site_col="Site"))]
+                if not t1_df.empty else [Paragraph("<i>No data.</i>", sNA)])
     t2_block = ([_cap("Table 2. Mean trace lengths comparison (CloudCompare vs DFN)."),
                  _center_tbl(_df_table(trace_df, cw2, site_col="Site"))]
                 if not trace_df.empty else [Paragraph("<i>No data.</i>", sNA)])
-    add(_band(
-        [_img(FIG3, COL_W, FIG_H),
-         _cap("Figure 3. Perpendicular spacing survival distributions for the pooled BCTOTAL dataset.")],
-        t2_block,
-    ))
+    add(_band(t1_block, t2_block))
     add(_sp())
 
-    # Band row 3: Table 1 (left) | Table 3 (right)
-    t1_block = ([_cap("Table 1. Blockometry percentile summary — all BC sites."),
-                 _center_tbl(_df_table(t1_df, cw1, site_col="Site"))]
-                if not t1_df.empty else [Paragraph("<i>No data.</i>", sNA)])
-    t3_block = ([_cap("Table 3. DFN calibration summary."),
+    # Band row 3: Fig 4 (left) | Table 3 (right)
+    fig4_block = [_img(FIG4, COL_W, FIG_H),
+                  _cap("Figure 4. Block volume overlay distribution.")]
+    t3_block = ([_cap("Table 3. DFN calibration summary — VARENNE."),
                  _center_tbl(_df_table(cd, cw3, site_col="Site"))]
                 if not cd.empty else [Paragraph("<i>No data.</i>", sNA)])
-    add(_band(t1_block, t3_block))
+    add(_band(fig4_block, t3_block))
+    add(_sp())
 
     # ── APPENDIX — Table A1 ───────────────────────────────────────────────────
     add(NextPageTemplate("appendix_1col"))
     add(PageBreak())
     add(
         Paragraph("Appendix", sSec),
-        Paragraph("Table A1. DFN fracture characteristics — all sites", sTblCap),
+        Paragraph("Table A1. DFN fracture characteristics — VARENNE", sTblCap),
         Spacer(1, 0.2 * cm),
     )
 
@@ -572,12 +712,23 @@ def generate_scientific_report(project_name: str = "BCTOTAL") -> str:
             if k < len(chunks) - 1:
                 add(PageBreak())
     else:
-        add(Paragraph("<i>No DFN fracture characteristics data found. Run option [7] first.</i>", sNA))
+        add(Paragraph("<i>No DFN fracture characteristics data found. Run varenne.py first.</i>", sNA))
 
     doc.build(S_)
     return out_pdf
 
 
 # backward-compatible alias
-def generate_whiteboard_report(project_name: str = "BCTOTAL") -> str:
+def generate_whiteboard_report(project_name: str = "VARENNE") -> str:
     return generate_scientific_report(project_name)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate scientific report for VARENNE DFN analysis.")
+    parser.add_argument("--project", default="VARENNE", help="Project name (default: VARENNE)")
+    args = parser.parse_args()
+    
+    print(f"Generating report for {args.project}...")
+    output_path = generate_scientific_report(args.project)
+    print(f"✅ Report saved: {output_path}")
