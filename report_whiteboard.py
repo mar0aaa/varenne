@@ -163,15 +163,19 @@ def _generate_persistence_survival_plot(out_path: str) -> bool:
             continue
         
         diameters = pd.to_numeric(df['diameter_m'], errors='coerce').dropna()
-        diameters = diameters[diameters > 0].sort_values().to_numpy()
+        diameters = diameters[diameters > 0].to_numpy()
         
         if len(diameters) == 0:
             continue
         
         n = len(diameters)
         
-        # Empirical survival (% >= x)
-        occurrence = 100 * (1 - np.arange(n) / n)
+        # Create smooth grid for evaluation (like PERSISTENCE.py)
+        x_min, x_max = diameters.min(), diameters.max()
+        x_grid = np.logspace(np.log10(x_min * 0.9), np.log10(x_max * 1.1), 350)
+        
+        # Empirical survival on grid: 100 * P(X >= x) for each grid point
+        y_empirical = np.array([100.0 * np.mean(diameters >= x) for x in x_grid])
         
         # Fit lognormal distribution
         try:
@@ -179,18 +183,17 @@ def _generate_persistence_survival_plot(out_path: str) -> bool:
             mu = np.log(scale)
             sigma = shape
             
-            # Generate fitted curve
-            x_fit = np.logspace(np.log10(diameters.min()), np.log10(diameters.max()), 200)
-            y_fit = 100 * stats.lognorm.sf(x_fit, shape, loc, scale)
+            # Generate fitted curve on same grid
+            y_fit = 100 * stats.lognorm.sf(x_grid, shape, loc, scale)
             
             # Plot fitted curve (solid)
-            ax.plot(x_fit, y_fit, color=colors[idx], linewidth=2,
+            ax.plot(x_grid, y_fit, color=colors[idx], linewidth=2,
                    label=f'fam{fam_num} LOGN (μ={mu:.2f}, σ={sigma:.2f}, n={n})')
-            # Plot empirical curve (dashed)
-            ax.plot(diameters, occurrence, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
+            # Plot empirical curve (dashed) - smooth grid evaluation
+            ax.plot(x_grid, y_empirical, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
         except:
             # Fallback if fitting fails
-            ax.plot(diameters, occurrence, '--', color=colors[idx], linewidth=2,
+            ax.plot(x_grid, y_empirical, '--', color=colors[idx], linewidth=2,
                    label=f'fam{fam_num} (n={n})')
     
     ax.set_xlabel('Persistence / trace length (m)', fontsize=11)
@@ -513,7 +516,7 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
     trace_df  = _build_trace_df()
     calib_df  = _build_calib_df()
 
-    annex_csv = os.path.join(SCRIPT_DIR, "outputs", "VARENNE",
+    annex_csv = os.path.join(SCRIPT_DIR, "outputs", "combined",
                              "DFN_fracture_characteristics_VARENNE.csv")
     annex_df  = pd.read_csv(annex_csv) if os.path.exists(annex_csv) else pd.DataFrame()
 
