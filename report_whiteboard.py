@@ -141,143 +141,30 @@ def _build_calib_df():
     return pd.DataFrame(rows)
 
 
-def _generate_persistence_survival_plot(out_path: str) -> bool:
-    """Generate combined persistence survival plot (all families) with lognormal fits."""
-    import matplotlib.pyplot as plt
-    from scipy import stats
-    
-    persist_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "07_persistence")
-    if not os.path.isdir(persist_dir):
-        return False
-    
-    fig, ax = plt.subplots(figsize=(8, 5))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-    
-    for idx, fam_num in enumerate([1, 2, 3, 4]):
-        csv_path = os.path.join(persist_dir, f"persistence_radii_fam{fam_num}.csv")
-        if not os.path.exists(csv_path):
-            continue
-        
-        df = pd.read_csv(csv_path)
-        if 'diameter_m' not in df.columns:
-            continue
-        
-        diameters = pd.to_numeric(df['diameter_m'], errors='coerce').dropna()
-        diameters = diameters[diameters > 0].to_numpy()
-        
-        if len(diameters) == 0:
-            continue
-        
-        n = len(diameters)
-        
-        # Create smooth grid for evaluation (like PERSISTENCE.py)
-        x_min, x_max = diameters.min(), diameters.max()
-        x_grid = np.logspace(np.log10(x_min * 0.9), np.log10(x_max * 1.1), 350)
-        
-        # Empirical survival on grid: 100 * P(X >= x) for each grid point
-        y_empirical = np.array([100.0 * np.mean(diameters >= x) for x in x_grid])
-        
-        # Fit lognormal distribution
-        try:
-            shape, loc, scale = stats.lognorm.fit(diameters, floc=0)
-            mu = np.log(scale)
-            sigma = shape
-            
-            # Generate fitted curve on same grid
-            y_fit = 100 * stats.lognorm.sf(x_grid, shape, loc, scale)
-            
-            # Plot fitted curve (solid)
-            ax.plot(x_grid, y_fit, color=colors[idx], linewidth=2,
-                   label=f'fam{fam_num} LOGN (μ={mu:.2f}, σ={sigma:.2f}, n={n})')
-            # Plot empirical curve (dashed) - smooth grid evaluation
-            ax.plot(x_grid, y_empirical, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
-        except:
-            # Fallback if fitting fails
-            ax.plot(x_grid, y_empirical, '--', color=colors[idx], linewidth=2,
-                   label=f'fam{fam_num} (n={n})')
-    
-    ax.set_xlabel('Persistence / trace length (m)', fontsize=11)
-    ax.set_ylabel('Occurrence (%) (≥ x)', fontsize=11)
-    ax.set_title('Occurrence (%) vs Persistence — VARENNE (all families)\nEmpirical (dashed) + Lognormal fit (solid)', 
-                fontsize=11, fontweight='bold')
-    ax.set_xscale('log')
-    ax.grid(True, alpha=0.3, which='both')
-    ax.legend(loc='best', fontsize=8)
-    ax.set_ylim(0, 100)
-    
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    return True
+def _find_persistence_survival_plot() -> Optional[str]:
+    """
+    Locate the validated combined persistence survival plot produced by
+    PERSISTENCE.py (real field trace-length survival, all families).
+    Does NOT regenerate it — PERSISTENCE.py is the single source of truth.
+    """
+    persist_out = os.path.join(SCRIPT_DIR, "outputs", "PERSISTENCE")
+    return _first_existing([
+        os.path.join(persist_out, "persistence_survival_VARENNE_all_families.png"),
+        os.path.join(persist_out, "persistence_survival_BC_TOTAL_all_families.png"),
+    ])
 
 
-def _generate_spacing_survival_plot(out_path: str) -> bool:
-    """Generate combined spacing survival plot (all families) from trace data."""
-    import matplotlib.pyplot as plt
-    from scipy import stats
-    
-    # Load trace data
-    trace_path = os.path.join(SCRIPT_DIR, "assets", "varenne_traces.csv")
-    if not os.path.exists(trace_path):
-        return False
-    
-    df = pd.read_csv(trace_path)
-    if "REGION" in df.columns:
-        df = df[df["REGION"] == "VARENNE"]
-    
-    fc = next((c for c in df.columns if c.lower() in ("fam", "family")), None)
-    lc = next((c for c in df.columns if c.lower() in ("length", "corrected length")), None)
-    
-    if not fc or not lc:
-        return False
-    
-    df[lc] = pd.to_numeric(df[lc], errors="coerce")
-    df = df.dropna(subset=[fc, lc])
-    df = df[df[lc] > 0]
-    
-    fig, ax = plt.subplots(figsize=(8, 5))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-    
-    for idx, fam_num in enumerate([1, 2, 3, 4]):
-        fam_data = df[df[fc] == f'fam{fam_num}']
-        if len(fam_data) == 0:
-            continue
-        
-        spacings = fam_data[lc].sort_values()
-        n = len(spacings)
-        
-        # Empirical survival
-        occurrence = 100 * (1 - np.arange(n) / n)
-        
-        # Fit lognormal
-        try:
-            shape, loc, scale = stats.lognorm.fit(spacings, floc=0)
-            mu = np.log(scale)
-            sigma = shape
-            
-            x_fit = np.logspace(np.log10(spacings.min()), np.log10(spacings.max()), 200)
-            y_fit = 100 * stats.lognorm.sf(x_fit, shape, loc, scale)
-            
-            ax.plot(x_fit, y_fit, color=colors[idx], linewidth=2,
-                   label=f'fam{fam_num} LOGN (μ={mu:.2f}, σ={sigma:.2f}, n={n})')
-            ax.plot(spacings, occurrence, '--', color=colors[idx], alpha=0.6, linewidth=1.5)
-        except:
-            ax.plot(spacings, occurrence, color=colors[idx], linewidth=2,
-                   label=f'fam{fam_num} (n={n})')
-    
-    ax.set_xlabel('Perpendicular spacing S (m)', fontsize=11)
-    ax.set_ylabel('Occurrence (%) (≥ x)', fontsize=11)
-    ax.set_title('Occurrence (%) vs Spacing — VARENNE (all families)\nEmpirical (dashed) + Lognormal fit (solid)', 
-                fontsize=11, fontweight='bold')
-    ax.set_xscale('log')
-    ax.grid(True, alpha=0.3, which='both')
-    ax.legend(loc='best', fontsize=8)
-    ax.set_ylim(0, 100)
-    
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    return True
+def _find_spacing_survival_plot() -> Optional[str]:
+    """
+    Locate the validated combined spacing survival plot produced by
+    SPACING.py (real perpendicular-spacing survival, all families).
+    Does NOT regenerate it — SPACING.py is the single source of truth.
+    """
+    spacing_out = os.path.join(SCRIPT_DIR, "outputs", "SPACING")
+    return _first_existing([
+        os.path.join(spacing_out, "spacing_survival_VARENNE_all_families.png"),
+        os.path.join(spacing_out, "spacing_survival_BC_TOTAL_all_families.png"),
+    ])
 
 
 def _generate_blockometry_curve(out_path: str) -> bool:
@@ -314,8 +201,10 @@ def _generate_blockometry_curve(out_path: str) -> bool:
     cumulative_volumes = np.cumsum(vols_sorted)
     cumulative_probability = 100.0 * cumulative_volumes / cumulative_volumes[-1]
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+    # Create figure — aspect ratio matched to the report's figure box
+    # (COL_W x FIG_H = COL_W x 0.60*COL_W) so it renders at full column width,
+    # same as the persistence/spacing figures.
+    fig, ax = plt.subplots(figsize=(8, 4.8))
     
     # Plot VARENNE curve
     ax.plot(vols_sorted, cumulative_probability, 
@@ -462,8 +351,8 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
             ("LINEABOVE",     (0, 0), (-1, 0), 0.5, C_HEADBG),
             ("INNERGRID",     (0, 1), (-1,-1), 0.2, C_BORDER),
             ("BOX",           (0, 0), (-1,-1), 0.4, colors.HexColor("#888888")),
-            ("TOPPADDING",    (0, 0), (-1,-1), 3.5),
-            ("BOTTOMPADDING", (0, 0), (-1,-1), 3.5),
+            ("TOPPADDING",    (0, 0), (-1,-1), 5.0),
+            ("BOTTOMPADDING", (0, 0), (-1,-1), 5.0),
             ("LEFTPADDING",   (0, 0), (-1,-1), 0.6),
             ("RIGHTPADDING",  (0, 0), (-1,-1), 0.6),
         ]
@@ -492,7 +381,7 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
             if s.notna().mean() >= 0.8:
                 numeric_cols.append(idx)
         data = [hdr] + [[str(v) for v in r] for r in df.itertuples(index=False)]
-        row_heights = [10] + [8.2] * len(df)
+        row_heights = [12] + [10.0] * len(df)
         t = Table(
             data,
             colWidths=widths,
@@ -525,12 +414,11 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
         os.path.join(SCRIPT_DIR, "assets", "varenne_pic.png"),
     ])
     
-    # Generate combined persistence and spacing survival plots
-    FIG_PERSIST = os.path.join(report_dir, "persistence_survival_combined.png")
-    FIG_SPACING = os.path.join(report_dir, "spacing_survival_combined.png")
+    # Reuse the validated combined persistence/spacing survival plots produced
+    # by PERSISTENCE.py / SPACING.py (do not regenerate with different logic).
+    FIG_PERSIST = _find_persistence_survival_plot()
+    FIG_SPACING = _find_spacing_survival_plot()
     FIG_BLOCKVOL = os.path.join(report_dir, "blockometry_curve.png")
-    _generate_persistence_survival_plot(FIG_PERSIST)
-    _generate_spacing_survival_plot(FIG_SPACING)
     _generate_blockometry_curve(FIG_BLOCKVOL)
     
     FIG4 = FIG_BLOCKVOL  # Use the generated blockometry curve
@@ -637,12 +525,12 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
         cd = calib_df
         cw3 = None
 
-    # Band row 1: Fig 2 (left) | Fig 3 (right)
+    # Band row 1: Fig 2 (left) | Fig 4 (right)
     add(_band(
         [_img(FIG_PERSIST, COL_W, FIG_H),
          _cap("Figure 2. Persistence survival curves — all families.")],
-        [_img(FIG_SPACING, COL_W, FIG_H),
-         _cap("Figure 3. Spacing survival curves with lognormal fits — all families.")],
+        [_img(FIG4, COL_W, FIG_H),
+         _cap("Figure 4. Block volume overlay distribution.")],
     ))
     add(_sp())
 
@@ -656,13 +544,13 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
     add(_band(t1_block, t2_block))
     add(_sp())
 
-    # Band row 3: Fig 4 (left) | Table 3 (right)
-    fig4_block = [_img(FIG4, COL_W, FIG_H),
-                  _cap("Figure 4. Block volume overlay distribution.")]
+    # Band row 3: Fig 3 (left) | Table 3 (right)
+    fig3_block = [_img(FIG_SPACING, COL_W, FIG_H),
+                  _cap("Figure 3. Spacing survival curves with lognormal fits — all families.")]
     t3_block = ([_cap("Table 3. DFN calibration summary — VARENNE."),
                  _center_tbl(_df_table(cd, cw3, site_col="Site"))]
                 if not cd.empty else [Paragraph("<i>No data.</i>", sNA)])
-    add(_band(fig4_block, t3_block))
+    add(_band(fig3_block, t3_block))
     add(_sp())
 
     # ── APPENDIX — Table A1 ───────────────────────────────────────────────────
@@ -688,7 +576,7 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
         chunks = [ann.iloc[i:i+RPP] for i in range(0, len(ann), RPP)]
         for k, chunk in enumerate(chunks):
             hdr = [Paragraph(f"<b>{c}</b>",
-                   S(f"ah{k}{j}", fontName="Helvetica-Bold", fontSize=6, leading=8,
+                   S(f"ah{k}{j}", fontName="Helvetica-Bold", fontSize=8, leading=8.5,
                      alignment=TA_CENTER, textColor=C_HEADTXT))
                    for j, c in enumerate(cols)]
             data = [hdr] + [[str(v) for v in r] for r in chunk.itertuples(index=False)]
@@ -697,7 +585,8 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
                 ("BACKGROUND",    (0,0), (-1,0), C_HEADBG),
                 ("TEXTCOLOR",     (0,0), (-1,0), C_HEADTXT),
                 ("FONTNAME",      (0,1), (-1,-1), "Helvetica"),
-                ("FONTSIZE",      (0,0), (-1,-1), 6),
+                ("FONTSIZE",      (0,0), (-1,0), 8),
+                ("FONTSIZE",      (0,1), (-1,-1), 7.5),
                 ("ALIGN",         (0,0), (-1,-1), "CENTER"),
                 ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
                 ("INNERGRID",     (0,1), (-1,-1), 0.25, C_BORDER),
