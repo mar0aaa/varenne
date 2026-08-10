@@ -2,12 +2,12 @@
 """
 export_blockometry_charts.py
 ============================
-Reproduit les deux figures de blockométrie BC TOTAL en Excel :
+Reproduit les deux figures de blockométrie VARENNE en Excel :
   Sheet 1 — "Shape Distribution"  : bar chart groupé (6 formes × 5 bins de volume)
   Sheet 2 — "Shape Diagram"       : scatter α vs β, coloré par bin de volume
 
-Entrée  : outputs/BCTOTAL/06_blockometry_plots/block_shape_data_BCTOTAL.csv
-Sortie  : outputs/BCTOTAL/06_blockometry_plots/Blockometry_charts.xlsx
+Entrée  : outputs/VARENNE/06_blockometry_plots/block_shape_data_VARENNE.csv
+Sortie  : outputs/VARENNE/06_blockometry_plots/Blockometry_charts.xlsx
 """
 
 import os

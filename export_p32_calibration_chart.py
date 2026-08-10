@@ -5,7 +5,7 @@ export_p32_calibration_chart.py
 Reproduit la figure "BC TOTAL — P32 calibration (all families)"
 dans un classeur Excel avec graphique natif xlsxwriter.
 
-Sortie : outputs/BCTOTAL/02_calibration/P32_calibration_chart.xlsx
+Sortie : outputs/VARENNE/02_calibration/P32_calibration_chart.xlsx
 
 Éléments reproduits :
   • Points (scatter) : résultats DFN par famille
@@ -21,11 +21,11 @@ import xlsxwriter
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SWEEP_CSV   = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "01_sweep",
+SWEEP_CSV   = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "01_sweep",
                            "P32_to_P21_sweep_results_BCTOTAL.csv")
-CALIB_CSV   = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "02_calibration",
+CALIB_CSV   = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "02_calibration",
                            "P32_calibrated_summary_BCTOTAL.csv")
-OUT_FILE    = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "02_calibration",
+OUT_FILE    = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "02_calibration",
                            "P32_calibration_chart.xlsx")
 
 # Colours matching matplotlib tab10

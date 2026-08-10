@@ -1,10 +1,10 @@
 # ============================================================
 # SPACING — Perpendicular fracture spacing survival analysis
-#            ALL BC sites pooled (all bc corrected fam.xlsx)
+#            VARENNE site analysis
 #
 # Outputs saved to: outputs/SPACING/
 #   - spacing_survival_<fam>.png
-#   - spacing_survival_BC_TOTAL_all_families.png
+#   - spacing_survival_VARENNE_all_families.png
 #   - spacing_fit_summary_LOGN.xlsx
 #   - spacing_fit_summary_WIDE_LOGN.xlsx
 #   - raw_spacing_values.xlsx
@@ -475,8 +475,8 @@ if rows:
         ax_t.legend(fontsize=9)
         fig_t.tight_layout()
 
-        out_tot_png = os.path.join(OUT_DIR, "spacing_survival_BC_TOTAL_all_families.png")
-        out_tot_pdf = os.path.join(OUT_DIR, "spacing_survival_BC_TOTAL_all_families.pdf")
+        out_tot_png = os.path.join(OUT_DIR, "spacing_survival_VARENNE_all_families.png")
+        out_tot_pdf = os.path.join(OUT_DIR, "spacing_survival_VARENNE_all_families.pdf")
         plt.savefig(out_tot_png, dpi=300, bbox_inches="tight")
         plt.savefig(out_tot_pdf, bbox_inches="tight")
         plt.close()

@@ -2,13 +2,13 @@
 """
 render_block_volume_3d.py
 =========================
-Regenerates the 3-D block-volume visualization for BCTOTAL.
+Regenerates the 3-D block-volume visualization for VARENNE.
 
 Colorbar is set to log scale from 1e-4 m³ to 200 m³ (matching
 Figure 15 in-situ block size distribution), replacing the previous
 auto-scaled version that only showed the range 10–160 m³.
 
-Output: outputs/BCTOTAL/04_blocks_vtk/blocksbctotal.png
+Output: outputs/VARENNE/04_blocks_vtk/blocksvarenne.png
 """
 
 import os
@@ -23,11 +23,11 @@ from matplotlib.colorbar import ColorbarBase
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 VTK_PATH = os.path.join(
-    SCRIPT_DIR, "outputs", "BCTOTAL", "04_blocks_vtk",
-    "VIZ_calibrated_BCTOTAL_Blocks_clean.vtk"
+    SCRIPT_DIR, "outputs", "VARENNE", "04_blocks_vtk",
+    "VIZ_calibrated_VARENNE_Blocks_clean.vtk"
 )
-TMP_PNG = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "04_blocks_vtk", "_tmp_render.png")
-OUT_PNG = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "04_blocks_vtk", "blocksbctotal.png")
+TMP_PNG = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "04_blocks_vtk", "_tmp_render.png")
+OUT_PNG = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "04_blocks_vtk", "blocksvarenne.png")
 
 # Colorbar limits — match Figure 15 (1E-4 to ~1E+2 m³)
 VMIN = 1e-4   # m³  (dark blue = smallest meaningful blocks)

@@ -1,12 +1,12 @@
 """
-plot_dfn_diameters.py — Visualise DFN-generated fracture diameters for all BC sites.
+plot_dfn_diameters.py — Visualise DFN-generated fracture diameters for VARENNE site.
 
 This script reads the consolidated CSV produced by ``extract_dfn_diameters.py``
-(``outputs/combined/DFN_fracture_diameters_BC_sites.csv``) and generates:
+(``outputs/combined/DFN_fracture_characteristics_VARENNE.csv``) and generates:
 
 1. **Per-family boxplots** (one figure per fracture family):
-   Each figure shows side-by-side box-and-whisker plots for every BC site
-   that has data for that family, colour-coded by site.  Median lines are
+   Each figure shows side-by-side box-and-whisker plots for VARENNE site
+   with data for that family.  Median lines are
    drawn in black.  Figures are saved as both PNG (300 dpi) and PDF.
 
 2. **Combined grid figure** (all families on one canvas):
@@ -23,7 +23,7 @@ Prerequisites
 Run ``extract_dfn_diameters.py`` (menu option [7]) before this script.
 The input CSV must exist at::
 
-    outputs/combined/DFN_fracture_diameters_BC_sites.csv
+    outputs/combined/DFN_fracture_characteristics_VARENNE.csv
 
 All outputs are written to::
 
@@ -38,7 +38,7 @@ import matplotlib.ticker as mticker
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 COMBINED_DIR = os.path.join(SCRIPT_DIR, "outputs", "combined")
 
-CSV_IN  = os.path.join(COMBINED_DIR, "DFN_fracture_diameters_BC_sites.csv")
+CSV_IN  = os.path.join(COMBINED_DIR, "DFN_fracture_characteristics_VARENNE.csv")
 OUT_DIR = os.path.join(COMBINED_DIR, "dfn_diameter_plots")
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -50,20 +50,16 @@ if not os.path.exists(CSV_IN):
 
 df = pd.read_csv(CSV_IN)
 
-SITES   = ["BC1LEFT", "BC1RIGHT", "BC2", "BC3LEFT", "BC3RIGHT"]
-FAMILIES = sorted(df["family"].unique(),
+SITES   = ["VARENNE"]
+FAMILIES = sorted(df["family_name"].unique(),
                   key=lambda x: (int(x[3:]) if x[3:].isdigit() else 99))
 
 COLORS = {
-    "BC1LEFT":   "#1f77b4",
-    "BC1RIGHT":  "#ff7f0e",
-    "BC2":       "#2ca02c",
-    "BC3LEFT":   "#d62728",
-    "BC3RIGHT":  "#9467bd",
+    "VARENNE":   "#1f77b4",
 }
 
 # ── summary CSV ──────────────────────────────────────────────────────────────
-summary = (df.groupby(["site", "family"])["diameter_m"]
+summary = (df.groupby(["site", "family_name"])["diameter_m"]
              .agg(n="count",
                   mean="mean",
                   std="std",
@@ -82,7 +78,7 @@ print(summary.to_string(index=False))
 
 # ── one boxplot per family ────────────────────────────────────────────────────
 for fam in FAMILIES:
-    sub = df[df["family"] == fam]
+    sub = df[df["family_name"] == fam]
     avail_sites = [s for s in SITES if s in sub["site"].values]
 
     data   = [sub.loc[sub["site"] == s, "diameter_m"].values for s in avail_sites]
@@ -138,7 +134,7 @@ for ax, fam in zip(axes, FAMILIES):
 for ax in axes[len(FAMILIES):]:
     ax.set_visible(False)
 
-fig.suptitle("DFN-generated fracture diameters — all families (BC sites)", fontsize=13, fontweight="bold")
+fig.suptitle("DFN-generated fracture diameters — all families (VARENNE site)", fontsize=13, fontweight="bold")
 plt.tight_layout()
 combined_png = os.path.join(OUT_DIR, "DFN_diameters_all_families.png")
 combined_pdf = os.path.join(OUT_DIR, "DFN_diameters_all_families.pdf")

@@ -1,7 +1,7 @@
 """
 Export the DFN-predicted pre-blast vs WipFrag post-blast fragmentation comparison
 as an editable Excel chart.
-Output: outputs/BCTOTAL/08_fragmentation_comparison/fragmentation_comparison_chart.xlsx
+Output: outputs/VARENNE/08_fragmentation_comparison/fragmentation_comparison_chart.xlsx
 """
 
 import os
@@ -18,12 +18,12 @@ from plot_blockometry_vs_fragmentation import (
 )
 
 BLOCK_VOLUMES_TXT = (
-    "outputs/BCTOTAL/05_block_volumes/"
-    "VIZ_calibrated_BCTOTAL_BlockVolumes_clean.txt"
+    "outputs/VARENNE/05_block_volumes/"
+    "VIZ_calibrated_VARENNE_BlockVolumes_clean.txt"
 )
 WIPFRAG_XLSX = "assets/Fragmentation wipfrag results.xlsx"
 OUT_FILE     = (
-    "outputs/BCTOTAL/08_fragmentation_comparison/"
+    "outputs/VARENNE/08_fragmentation_comparison/"
     "fragmentation_comparison_chart.xlsx"
 )
 N_POINTS = 300   # number of interpolation points for the DFN smooth curve

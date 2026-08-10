@@ -1,13 +1,16 @@
 """
 Export a grouped bar chart (Avg CC vs Avg DFN) per site/family into Excel.
-Output: outputs/BCTOTAL/02_calibration/CC_vs_DFN_chart.xlsx
+Output: outputs/VARENNE/02_calibration/CC_vs_DFN_chart.xlsx
+
+NOTE: This file currently contains hardcoded BC site data (lines 11-27).
+      Update with VARENNE-specific data if needed.
 """
 
 import xlsxwriter
 
-OUT_FILE = "outputs/BCTOTAL/02_calibration/CC_vs_DFN_chart.xlsx"
+OUT_FILE = "outputs/VARENNE/02_calibration/CC_vs_DFN_chart.xlsx"
 
-# ── Data ─────────────────────────────────────────────────────────────────────
+# ── Data (BC SITE DATA - UPDATE FOR VARENNE) ─────────────────────────────────
 ROWS = [
     ("BC1LEFT",  "fam1", 1.604, 1.620),
     ("BC1LEFT",  "fam3", 1.598, 1.597),

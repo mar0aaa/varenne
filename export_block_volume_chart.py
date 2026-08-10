@@ -5,11 +5,10 @@ export_block_volume_chart.py
 Reproduit la figure "Block Volume Distributions Overlay — BC sites"
 dans un classeur Excel avec graphique natif xlsxwriter.
 
-Sortie : outputs/BCTOTAL/06_blockometry_plots/Block_Volume_Overlay.xlsx
+Sortie : outputs/VARENNE/06_blockometry_plots/Block_Volume_Overlay.xlsx
 
 Éléments reproduits :
-  • CDF empirique compte-basée pour chaque site (ligne pleine)
-  • BCTOTAL en tirets noirs
+  • CDF empirique compte-basée pour VARENNE (ligne pleine)
   • Fuseau P10–P90 (série de remplissage gris)
   • Axe X logarithmique [1e-4 … 1e3]
 """
@@ -22,15 +21,10 @@ from scipy.interpolate import interp1d
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 SITES = [
-    ("BC1LEFT",  "BC-1 Left",  "#1f77b4"),
-    ("BC1RIGHT", "BC-1 Right", "#ff7f0e"),
-    ("BC2",      "BC-2",       "#2ca02c"),
-    ("BC3LEFT",  "BC-3 Left",  "#d62728"),
-    ("BC3RIGHT", "BC-3 Right", "#9467bd"),
-    ("BCTOTAL",  "BC-Total",   "#000000"),
+    ("VARENNE",  "VARENNE",  "#1f77b4"),
 ]
 
-OUT_FILE = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL",
+OUT_FILE = os.path.join(SCRIPT_DIR, "outputs", "VARENNE",
                         "06_blockometry_plots", "Block_Volume_Overlay.xlsx")
 os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
 
@@ -75,8 +69,8 @@ def main():
         n = len(v)
         print(f"  {site}: n={n}")
 
-    # ── Fuseau P10–P90 (exclude BCTOTAL) ─────────────────────
-    fus_sites = [s for s, _, _ in SITES if s != "BCTOTAL"]
+    # ── Fuseau P10–P90 ─────────────────────
+    fus_sites = [s for s, _, _ in SITES]
     y_stack   = np.array([cdfs[s] for s in fus_sites])
     y_low     = np.quantile(y_stack, Q_LOW,  axis=0)
     y_high    = np.quantile(y_stack, Q_HIGH, axis=0)
@@ -139,7 +133,6 @@ def main():
     # ── Individual site CDF lines (added first → appear first in legend) ────
     for j, (site, _, _) in enumerate(SITES):
         col_idx = j + 1
-        is_bctotal = (site == "BCTOTAL")
         n_blocks = len(load_volumes(site))
         label = f"{next(l for s,l,_ in SITES if s==site)} (n={n_blocks:,})"
 
@@ -149,8 +142,8 @@ def main():
             "values":     ["data", 1, col_idx, N_PTS, col_idx],
             "line": {
                 "color":     next(c for s,_,c in SITES if s==site),
-                "width":     2.5 if is_bctotal else 2.0,
-                "dash_type": "dash" if is_bctotal else "solid",
+                "width":     2.5,
+                "dash_type": "solid",
             },
             "marker": {"type": "none"},
         })

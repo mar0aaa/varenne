@@ -1,18 +1,21 @@
 """
 Export a grouped bar chart of absolute relative error (%) in P21
-between field measurements (terrain) and DFN model, grouped by site (6 groups),
+between field measurements (terrain) and DFN model, grouped by site,
 with one bar per family (F1–F4) per group.
 
 Formula: |P21_terrain - P21_model| / P21_terrain * 100
 
-Output: outputs/BCTOTAL/02_calibration/P21_error_chart.xlsx
+Output: outputs/VARENNE/02_calibration/P21_error_chart.xlsx
+
+NOTE: This file currently contains hardcoded BC site data (lines 17-48).
+      Update with VARENNE-specific data if needed.
 """
 
 import xlsxwriter
 
-OUT_FILE = "outputs/BCTOTAL/02_calibration/P21_error_chart.xlsx"
+OUT_FILE = "outputs/VARENNE/02_calibration/P21_error_chart.xlsx"
 
-# ── Raw data (site, family, p21_terrain, p21_model) ──────────────────────────
+# ── Raw data (BC SITE DATA - UPDATE FOR VARENNE) ─────────────────────────────
 ROWS = [
     ("BC1LEFT",  "fam1", 0.02832, 0.02839),
     ("BC1LEFT",  "fam3", 0.08833, 0.07927),

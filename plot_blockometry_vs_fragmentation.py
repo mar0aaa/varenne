@@ -7,13 +7,13 @@ The figure shows % passing vs particle size using either:
 
 Inputs (defaults):
 - In-situ block volumes:
-    outputs/BCTOTAL/05_block_volumes/VIZ_calibrated_BCTOTAL_BlockVolumes_clean.txt
+    outputs/VARENNE/05_block_volumes/VIZ_calibrated_VARENNE_BlockVolumes_clean.txt
 - WipFrag results:
     assets/Fragmentation wipfrag results.xlsx
 
 Output (defaults):
-- outputs/BCTOTAL/08_fragmentation_comparison/blockometry_vs_fragmentation.png
-- outputs/BCTOTAL/08_fragmentation_comparison/blockometry_vs_fragmentation.pdf
+- outputs/VARENNE/08_fragmentation_comparison/blockometry_vs_fragmentation.png
+- outputs/VARENNE/08_fragmentation_comparison/blockometry_vs_fragmentation.pdf
 """
 
 import argparse
@@ -29,12 +29,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_BLOCK_VOLUMES = os.path.join(
     SCRIPT_DIR,
     "outputs",
-    "BCTOTAL",
+    "VARENNE",
     "05_block_volumes",
-    "VIZ_calibrated_BCTOTAL_BlockVolumes_clean.txt",
+    "VIZ_calibrated_VARENNE_BlockVolumes_clean.txt",
 )
 DEFAULT_WIPFRAG_XLSX = os.path.join(SCRIPT_DIR, "assets", "Fragmentation wipfrag results.xlsx")
-DEFAULT_OUT_DIR = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "08_fragmentation_comparison")
+DEFAULT_OUT_DIR = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "08_fragmentation_comparison")
 
 
 def _safe_numeric(series: pd.Series) -> pd.Series:
@@ -170,7 +170,7 @@ def make_overlay_plot(
 
     Reads two data sources:
 
-    1. **In-situ blockometry** — block volumes (m³) exported from the BCTOTAL
+    1. **In-situ blockometry** — block volumes (m³) exported from the VARENNE
        DFN pipeline, converted to a cumulative passing curve weighted by volume.
     2. **WipFrag post-blast fragmentation** — one or more granulometry curves
        parsed from the WipFrag Excel export, each representing a different

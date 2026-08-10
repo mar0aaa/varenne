@@ -1,7 +1,7 @@
 """
 Export a summary table (Joint Set / Dip / Dip Direction / Avg Spacing / Avg Persistence)
-for the BCTOTAL DFN into Excel.
-Output: outputs/BCTOTAL/09_report/Joint_set_summary_BCTOTAL.xlsx
+for the VARENNE DFN into Excel.
+Output: outputs/VARENNE/09_report/Joint_set_summary_VARENNE.xlsx
 """
 
 import os
@@ -9,8 +9,8 @@ import xlsxwriter
 import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_FILE   = os.path.join(SCRIPT_DIR, "outputs", "BCTOTAL", "09_report",
-                          "Joint_set_summary_BCTOTAL.xlsx")
+OUT_FILE   = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "09_report",
+                          "Joint_set_summary_VARENNE.xlsx")
 os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
 
 # ── Load mean spacing and persistence from existing summaries ─────────────────
@@ -19,7 +19,7 @@ sp = pd.read_excel(os.path.join(SCRIPT_DIR, "outputs", "SPACING",
 pe = pd.read_excel(os.path.join(SCRIPT_DIR, "outputs", "PERSISTENCE",
                                 "persistence_fit_summary_EXP_LOGN.xlsx"))
 
-sp_bc = sp[sp["region"] == "BCTOTAL"].set_index("family")["mean_fit"]
+sp_varenne = sp[sp["region"] == "VARENNE"].set_index("family")["mean_fit"]
 pe_bc = pe[pe["region"] == "TOTAL"].set_index("family")["mean_fit"]
 
 # ── Mean orientations (computed from all-site pooled measurements) ────────────
@@ -74,7 +74,7 @@ ws.set_row(1, 30)
 
 # Title row
 ws.merge_range(0, 0, 0, 4,
-               "BCTOTAL — Fracture Family Characteristics (DFN)", title_fmt)
+               "VARENNE — Fracture Family Characteristics (DFN)", title_fmt)
 
 # Header row
 headers = ["Joint Set", "Dip (°)", "Dip Direction (°)",

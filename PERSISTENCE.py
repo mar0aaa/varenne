@@ -1,10 +1,10 @@
 # ============================================================
 # PERSISTENCE — Trace length / persistence survival analysis
-#               ALL sites pooled (all bc corrected fam.xlsx)
+#               VARENNE site analysis
 #
 # Outputs saved to: outputs/PERSISTENCE/
 #   - persistence_survival_<fam>.png  (one plot per family)
-#   - persistence_survival_BC_TOTAL_all_families.png
+#   - persistence_survival_VARENNE_all_families.png
 #   - persistence_fit_summary_EXP_LOGN.xlsx
 #   - persistence_fit_summary_WIDE.xlsx
 # ============================================================
@@ -470,11 +470,11 @@ def exp_mean_std_from_lambda(lam: float):
 # ============================================================
 def main():
     """
-    Run the full trace-length persistence survival analysis for all BC sites.
+    Run the full trace-length persistence survival analysis for VARENNE site.
 
     Workflow
     --------
-    1. **Load data** — reads ``assets/all bc corrected fam.xlsx``, strips
+    1. **Load data** — reads input Excel file, strips
        column names, and validates that the required ``fam`` and ``REGION``
        columns are present.
     2. **Load Mauldon corrections** (optional) — if
@@ -489,7 +489,7 @@ def main():
        d. If Mauldon corrections are available, overlays a Mauldon-corrected
           lognormal as the DFN reference curve on per-region sub-plots.
        e. Saves one PNG per family to ``outputs/PERSISTENCE/``.
-    4. **Combined BC_TOTAL plot** — overlays all families’ TOTAL-pooled best
+    4. **Combined VARENNE plot** — overlays all families' TOTAL-pooled best
        fits on a single axes and saves a combined PNG.
     5. **Export summaries** — writes two Excel files:
        - ``persistence_fit_summary_EXP_LOGN.xlsx``: long-format per (family,
@@ -692,7 +692,7 @@ def main():
             print(f"  ✅ Saved: {out_png}")
         plt.close(fig)
 
-    # ---- combined BC_TOTAL plot ----
+    # ---- combined VARENNE plot ----
     def _fam_sort_key(s):
         """
         Integer sort key for a fracture-family label string.
@@ -761,7 +761,7 @@ def main():
              label=f"{fam_short} empirical")
         plotted_any_total = True
 
-    ax2.set_title("Occurrence (%) vs Persistence — BC_TOTAL\nEmpirical (dashed) + Best fit (solid: Exp or Lognormal)")
+    ax2.set_title("Occurrence (%) vs Persistence — VARENNE\nEmpirical (dashed) + Best fit (solid: Exp or Lognormal)")
     ax2.set_xlabel("Persistence / trace length (m)")
     ax2.set_ylabel("Occurrence (%) (≥ x)")
     ax2.set_ylim(0, 100)
@@ -777,7 +777,7 @@ def main():
     fig2.tight_layout()
 
     if plotted_any_total:
-        out_total = os.path.join(OUT_DIR, "persistence_survival_BC_TOTAL_all_families.png")
+        out_total = os.path.join(OUT_DIR, "persistence_survival_VARENNE_all_families.png")
         fig2.savefig(out_total, dpi=200, bbox_inches="tight")
         print(f"✅ Saved: {out_total}")
     plt.close(fig2)

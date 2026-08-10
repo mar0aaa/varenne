@@ -1,6 +1,6 @@
 # ============================================================
-# PLOTBCTOTAL.py
-# COMBINE BLOCK VOLUME DISTRIBUTIONS (BC1LEFT/BC1RIGHT/BC2/BC3LEFT/BC3RIGHT + BC_TOTAL)
+# PLOTVARENNE.py
+# COMBINE BLOCK VOLUME DISTRIBUTIONS (VARENNE)
 # + OVERLAY + GRID
 # + "FUSEAU" (band) built from curves:
 #     - mode="quantile" (recommended): e.g., P10–P90
@@ -58,8 +58,7 @@ LEGEND_BBOX = None         # e.g. (0.02, 0.98) if you want precise anchor
 ADD_FUSEAU = True
 
 # Which curves define the band?
-# You can include BCTOTAL or not. Here: YES include BCTOTAL.
-FUSEAU_INCLUDE_NAMES = {"BCTOTAL", "BC1LEFT", "BC1RIGHT", "BC2", "BC3LEFT", "BC3RIGHT"}
+FUSEAU_INCLUDE_NAMES = {"VARENNE"}
 
 # Band mode:
 #   "quantile" = recommended (less sensitive to extremes)
@@ -179,10 +178,9 @@ def plot_single(ax, v: np.ndarray, label: str, color: str, linestyle: str = "-")
     Args:
         ax: A matplotlib ``Axes`` object.
         v (np.ndarray): Block volumes (m³) for the site.
-        label (str): Legend label for the line (e.g. ``"BC1LEFT (n=342)"``).
+        label (str): Legend label for the line (e.g. ``"VARENNE (n=342)"``).
         color (str): Hex or named colour string.
         linestyle (str): Matplotlib line style (default ``"-"`` for solid).
-            Use ``"--"`` for the BCTOTAL total curve to distinguish it visually.
     """
     x_log, y, x_orig = compute_empirical_cdf(v)
     ax.semilogx(x_orig, y, color=color, linewidth=2.5, linestyle=linestyle, label=label)
@@ -194,12 +192,7 @@ def plot_single(ax, v: np.ndarray, label: str, color: str, linestyle: str = "-")
 print("Loading volumes...")
 data = {}
 colors_map = {
-    "BC1LEFT":  "#1f77b4",
-    "BC1RIGHT": "#ff7f0e",
-    "BC2":      "#2ca02c",
-    "BC3LEFT":  "#d62728",
-    "BC3RIGHT": "#9467bd",
-    "BCTOTAL":  "#000000",  # Black for total
+    "VARENNE":  "#1f77b4",
 }
 
 for site_name, path_prefix in SITES:
@@ -249,7 +242,7 @@ for idx, (site_name, v) in enumerate(data.items()):
 for idx in range(len(data), len(axes_flat)):
     axes_flat[idx].axis("off")
 
-plt.suptitle("Block Volume Distributions (BC sites)", fontsize=14, fontweight="bold")
+plt.suptitle("Block Volume Distributions (VARENNE site)", fontsize=14, fontweight="bold")
 plt.tight_layout()
 
 grid_png = os.path.join(BASE_DIR, "COMBINED_block_volume_grid.png")
@@ -268,7 +261,7 @@ if MAKE_OVERLAY:
     # Plot individual sites
     for site_name, v in data.items():
         color = colors_map.get(site_name, "blue")
-        linestyle = "-" if site_name != "BCTOTAL" else "--"
+        linestyle = "-"
         plot_single(ax, v, f"{site_name} (n={len(v):,})", color, linestyle=linestyle)
 
     # Add fuseau (band)
@@ -341,7 +334,7 @@ if MAKE_OVERLAY:
 
     ax.set_xlabel("Block Volume (m³)", fontsize=12)
     ax.set_ylabel("Cumulative Probability [% of blocks \u2264 x]", fontsize=12)
-    ax.set_title("Block Volume Distributions Overlay — BC sites", fontsize=14, fontweight="bold")
+    ax.set_title("Block Volume Distributions Overlay — VARENNE site", fontsize=14, fontweight="bold")
     ax.set_xlim([FORCE_XMIN or None, FORCE_XMAX or None])
     _style_ax(ax)
     ax.legend(loc=LEGEND_LOC, bbox_to_anchor=LEGEND_BBOX)

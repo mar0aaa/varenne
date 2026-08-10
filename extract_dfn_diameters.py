@@ -1,15 +1,15 @@
 """
 extract_dfn_diameters.py
 
-Extract DFN-generated fracture characteristics per family per BC site.
+Extract DFN-generated fracture characteristics per family per VARENNE site.
 
-Rebuilds the final calibrated DFN (seed=123) for each BC site using the same
+Rebuilds the final calibrated DFN (seed=123) for each VARENNE site using the same
 parameters as the site scripts, then records each fracture's inserted
 orientation together with area, radius, and equivalent diameter.
 
 Outputs:
-    - outputs/combined/DFN_fracture_characteristics_BC_sites.csv
-    - outputs/combined/DFN_fracture_characteristics_BC_sites.xlsx
+    - outputs/combined/DFN_fracture_characteristics_VARENNE.csv
+    - outputs/combined/DFN_fracture_characteristics_VARENNE.xlsx
 """
 
 import os
@@ -36,7 +36,7 @@ REGION_X = REGION_Y = REGION_Z = 50.0
 # Format: (site_name, excel_dips, family_ids, families_dict, p32_cal, dip_face, dipdir_face)
 from run_site import SITE_CONFIGS
 
-SITES_TO_EXTRACT = ["BC1LEFT", "BC1RIGHT", "BC2", "BC3LEFT", "BC3RIGHT"]
+SITES_TO_EXTRACT = ["VARENNE"]
 
 def export_dfn_fracture_characteristics(sites_to_extract=None):
     if sites_to_extract is None:
@@ -192,8 +192,8 @@ def export_dfn_fracture_characteristics(sites_to_extract=None):
         return None, None, None
 
     df_out = pd.DataFrame(all_rows)
-    out_csv = os.path.join(COMBINED_DIR, "DFN_fracture_characteristics_BC_sites.csv")
-    out_xlsx = os.path.join(COMBINED_DIR, "DFN_fracture_characteristics_BC_sites.xlsx")
+    out_csv = os.path.join(COMBINED_DIR, "DFN_fracture_characteristics_VARENNE.csv")
+    out_xlsx = os.path.join(COMBINED_DIR, "DFN_fracture_characteristics_VARENNE.xlsx")
     df_out.to_csv(out_csv, index=False)
     df_out.to_excel(out_xlsx, index=False)
     print(f"\n✅ Saved: {out_csv}")

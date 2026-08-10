@@ -5,13 +5,13 @@ with one bar per family (F1–F4) per group.
 
 Formula: |CC - DFN| / CC * 100
 
-Output: outputs/BCTOTAL/02_calibration/CC_vs_DFN_error_chart.xlsx
+Output: outputs/VARENNE/02_calibration/CC_vs_DFN_error_chart.xlsx
 """
 
 import xlsxwriter
 import math
 
-OUT_FILE = "outputs/BCTOTAL/02_calibration/CC_vs_DFN_error_chart.xlsx"
+OUT_FILE = "outputs/VARENNE/02_calibration/CC_vs_DFN_error_chart.xlsx"
 
 # ── Raw data (site, family, cc, dfn) ────────────────────────────────────────
 ROWS = [

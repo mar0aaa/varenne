@@ -1,13 +1,16 @@
 """
 Export a grouped column chart (P21 terrain / P21 model / P32 cal) per site/family into Excel.
-Output: outputs/BCTOTAL/02_calibration/P21_calibration_chart.xlsx
+Output: outputs/VARENNE/02_calibration/P21_calibration_chart.xlsx
+
+NOTE: This file currently contains hardcoded BC site data.
+      Update with VARENNE-specific data if needed.
 """
 
 import xlsxwriter
 
-OUT_FILE = "outputs/BCTOTAL/02_calibration/P21_calibration_chart.xlsx"
+OUT_FILE = "outputs/VARENNE/02_calibration/P21_calibration_chart.xlsx"
 
-# ── Data ─────────────────────────────────────────────────────────────────────
+# ── Data (BC SITE DATA - UPDATE FOR VARENNE) ─────────────────────────────────
 ROWS = [
     ("BC1LEFT",  "fam1", 0.02832, 0.02839, 0.02513, 0.9959),
     ("BC1LEFT",  "fam3", 0.08833, 0.07927, 0.09100, 0.9940),
