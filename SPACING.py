@@ -426,7 +426,7 @@ if fracture_rows:
     print(f"✅ {out_5}")
 
 # ============================================================
-# COMBINED BC_TOTAL PLOT — all families overlaid (BCTOTAL spacing)
+# COMBINED VARENNE PLOT — all families overlaid (VARENNE spacing)
 # ============================================================
 if rows:
     df_fit = pd.DataFrame(rows)
@@ -465,7 +465,7 @@ if rows:
             ax_t.plot(x_emp, y_emp, linestyle="--", linewidth=1.6,
                       color=line.get_color(), alpha=0.45)
 
-        ax_t.set_title("Occurrence (%) vs Spacing — BC_TOTAL (all families)\nEmpirical (dashed) + Lognormal fit (solid)")
+        ax_t.set_title("Occurrence (%) vs Spacing — VARENNE (all families)\nEmpirical (dashed) + Lognormal fit (solid)")
         ax_t.set_xlabel("Perpendicular spacing S (m)")
         ax_t.set_ylabel("Occurrence (%) (≥ x)")
         ax_t.set_ylim(0, 100)

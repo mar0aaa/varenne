@@ -228,8 +228,14 @@ def _generate_blockometry_curve(out_path: str) -> bool:
 
 # ── main report generator ─────────────────────────────────────────────────────
 
-def generate_scientific_report(project_name: str = "VARENNE") -> str:
-    """Generate a clean results-only scientific paper PDF (GeoQuébec style)."""
+def generate_scientific_report(project_name: str = "VARENNE", include_appendix: bool = True) -> str:
+    """Generate a clean results-only scientific paper PDF (GeoQuébec style).
+
+    Args:
+        project_name: Site/project name (currently only "VARENNE" supported).
+        include_appendix: If False, omits the Appendix (Table A1) section and
+            saves to "scientific_report_no_appendix.pdf" instead.
+    """
 
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
@@ -245,7 +251,10 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
 
     report_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "09_report")
     os.makedirs(report_dir, exist_ok=True)
-    out_pdf = os.path.join(report_dir, "scientific_report.pdf")
+    out_pdf = os.path.join(
+        report_dir,
+        "scientific_report.pdf" if include_appendix else "scientific_report_no_appendix.pdf",
+    )
 
     # ── geometry ──────────────────────────────────────────────────────────────
     PW, PH = A4                       # 595.28 × 841.89 pt
@@ -554,57 +563,58 @@ def generate_scientific_report(project_name: str = "VARENNE") -> str:
     add(_sp())
 
     # ── APPENDIX — Table A1 ───────────────────────────────────────────────────
-    add(NextPageTemplate("appendix_1col"))
-    add(PageBreak())
-    add(
-        Paragraph("Appendix", sSec),
-        Paragraph("Table A1. DFN fracture characteristics — VARENNE", sTblCap),
-        Spacer(1, 0.2 * cm),
-    )
+    if include_appendix:
+        add(NextPageTemplate("appendix_1col"))
+        add(PageBreak())
+        add(
+            Paragraph("Appendix", sSec),
+            Paragraph("Table A1. DFN fracture characteristics — VARENNE", sTblCap),
+            Spacer(1, 0.2 * cm),
+        )
 
-    if not annex_df.empty:
-        RPP = 38
-        ann = annex_df.copy()
-        for col in ["dip_deg", "dipdir_deg"]:
-            if col in ann.columns:
-                ann[col] = ann[col].round(1)
-        for col in ["area_m2", "radius_m", "diameter_m"]:
-            if col in ann.columns:
-                ann[col] = ann[col].round(4)
-        cols = list(ann.columns)
-        cwa  = [BODY_W / len(cols)] * len(cols)
-        chunks = [ann.iloc[i:i+RPP] for i in range(0, len(ann), RPP)]
-        for k, chunk in enumerate(chunks):
-            hdr = [Paragraph(f"<b>{c}</b>",
-                   S(f"ah{k}{j}", fontName="Helvetica-Bold", fontSize=8, leading=8.5,
-                     alignment=TA_CENTER, textColor=C_HEADTXT))
-                   for j, c in enumerate(cols)]
-            data = [hdr] + [[str(v) for v in r] for r in chunk.itertuples(index=False)]
-            tbl  = Table(data, colWidths=cwa, repeatRows=1)
-            cmds = [
-                ("BACKGROUND",    (0,0), (-1,0), C_HEADBG),
-                ("TEXTCOLOR",     (0,0), (-1,0), C_HEADTXT),
-                ("FONTNAME",      (0,1), (-1,-1), "Helvetica"),
-                ("FONTSIZE",      (0,0), (-1,0), 8),
-                ("FONTSIZE",      (0,1), (-1,-1), 7.5),
-                ("ALIGN",         (0,0), (-1,-1), "CENTER"),
-                ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
-                ("INNERGRID",     (0,1), (-1,-1), 0.25, C_BORDER),
-                ("BOX",           (0,0), (-1,-1), 0.5, colors.HexColor("#888888")),
-                ("LINEBELOW",     (0,0), (-1,0),  0.6, C_HEADBG),
-                ("TOPPADDING",    (0,0), (-1,-1), 1.5),
-                ("BOTTOMPADDING", (0,0), (-1,-1), 1.5),
-                ("LEFTPADDING",   (0,0), (-1,-1), 2),
-                ("RIGHTPADDING",  (0,0), (-1,-1), 2),
-            ]
-            for j, sv in enumerate(chunk["site"].values if "site" in chunk.columns else []):
-                cmds.append(("BACKGROUND", (0,j+1), (-1,j+1), SITE_CLR.get(str(sv), C_ALT)))
-            tbl.setStyle(TableStyle(cmds))
-            add(tbl)
-            if k < len(chunks) - 1:
-                add(PageBreak())
-    else:
-        add(Paragraph("<i>No DFN fracture characteristics data found. Run varenne.py first.</i>", sNA))
+        if not annex_df.empty:
+            RPP = 38
+            ann = annex_df.copy()
+            for col in ["dip_deg", "dipdir_deg"]:
+                if col in ann.columns:
+                    ann[col] = ann[col].round(1)
+            for col in ["area_m2", "radius_m", "diameter_m"]:
+                if col in ann.columns:
+                    ann[col] = ann[col].round(4)
+            cols = list(ann.columns)
+            cwa  = [BODY_W / len(cols)] * len(cols)
+            chunks = [ann.iloc[i:i+RPP] for i in range(0, len(ann), RPP)]
+            for k, chunk in enumerate(chunks):
+                hdr = [Paragraph(f"<b>{c}</b>",
+                       S(f"ah{k}{j}", fontName="Helvetica-Bold", fontSize=8, leading=8.5,
+                         alignment=TA_CENTER, textColor=C_HEADTXT))
+                       for j, c in enumerate(cols)]
+                data = [hdr] + [[str(v) for v in r] for r in chunk.itertuples(index=False)]
+                tbl  = Table(data, colWidths=cwa, repeatRows=1)
+                cmds = [
+                    ("BACKGROUND",    (0,0), (-1,0), C_HEADBG),
+                    ("TEXTCOLOR",     (0,0), (-1,0), C_HEADTXT),
+                    ("FONTNAME",      (0,1), (-1,-1), "Helvetica"),
+                    ("FONTSIZE",      (0,0), (-1,0), 8),
+                    ("FONTSIZE",      (0,1), (-1,-1), 7.5),
+                    ("ALIGN",         (0,0), (-1,-1), "CENTER"),
+                    ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+                    ("INNERGRID",     (0,1), (-1,-1), 0.25, C_BORDER),
+                    ("BOX",           (0,0), (-1,-1), 0.5, colors.HexColor("#888888")),
+                    ("LINEBELOW",     (0,0), (-1,0),  0.6, C_HEADBG),
+                    ("TOPPADDING",    (0,0), (-1,-1), 1.5),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 1.5),
+                    ("LEFTPADDING",   (0,0), (-1,-1), 2),
+                    ("RIGHTPADDING",  (0,0), (-1,-1), 2),
+                ]
+                for j, sv in enumerate(chunk["site"].values if "site" in chunk.columns else []):
+                    cmds.append(("BACKGROUND", (0,j+1), (-1,j+1), SITE_CLR.get(str(sv), C_ALT)))
+                tbl.setStyle(TableStyle(cmds))
+                add(tbl)
+                if k < len(chunks) - 1:
+                    add(PageBreak())
+        else:
+            add(Paragraph("<i>No DFN fracture characteristics data found. Run varenne.py first.</i>", sNA))
 
     doc.build(S_)
     return out_pdf
@@ -619,8 +629,15 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Generate scientific report for VARENNE DFN analysis.")
     parser.add_argument("--project", default="VARENNE", help="Project name (default: VARENNE)")
+    parser.add_argument("--no-appendix", action="store_true",
+                        help="Only generate the appendix-free copy (skip the full report).")
     args = parser.parse_args()
-    
-    print(f"Generating report for {args.project}...")
-    output_path = generate_scientific_report(args.project)
-    print(f"✅ Report saved: {output_path}")
+
+    if not args.no_appendix:
+        print(f"Generating report for {args.project}...")
+        output_path = generate_scientific_report(args.project, include_appendix=True)
+        print(f"✅ Report saved: {output_path}")
+
+    print(f"Generating no-appendix report for {args.project}...")
+    output_path_na = generate_scientific_report(args.project, include_appendix=False)
+    print(f"✅ Report saved: {output_path_na}")
