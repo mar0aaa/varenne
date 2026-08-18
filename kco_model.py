@@ -6,10 +6,11 @@
 #
 # Baseline formulation: Ouchterlony (2005), "The Swebrec function:
 # linking fragmentation by blasting and crushing", eqs. (11a)-(11e).
-# Later developments (Cunningham 2005 corrections C(A), C(n), timing
-# factor A_T; the shifted Kuz-Ram g(n)) are OPTIONAL and DISABLED by
-# default. Each function documents which published formulation it
-# implements.
+# Later developments (Cunningham 2005 timing factor A_T; the shifted
+# Kuz-Ram g(n)) are OPTIONAL and DISABLED by default. The A/6 rock-factor
+# term in the uniformity index is part of the baseline Cunningham (2005)
+# Eq. (48) implementation. Each function documents which published
+# formulation it implements.
 #
 # Workflow:
 #   rock/blast inputs -> BI -> A -> X50
@@ -88,8 +89,8 @@ def _jpa_table_for_version(jpa_mapping_version: str) -> dict:
     Return the JPA numeric table for the requested mapping version.
 
     Args:
-        jpa_mapping_version: "cunningham_1987" (default baseline) or
-            "cunningham_2005".
+        jpa_mapping_version: "cunningham_2005" (default baseline) or
+            "cunningham_1987".
 
     Returns:
         dict: Case -> JPA rating.
@@ -110,9 +111,9 @@ def joint_condition_factor(joint_condition: str) -> float:
     """
     Return the joint condition factor JCF from a categorical description.
 
-    Used only by BI formulations of the form JF = JCF * JPS + JPA
-    (later Lilly/Cunningham variants). The baseline Ouchterlony (2005)
-    mode does not use JCF.
+    Used only by the JF = JCF * JPS + JPA variant (later Cunningham
+    variants). The baseline Cunningham (2005) KCO model uses JF = JPS + JPA
+    and does not use JCF.
 
     Ratings:
         "tight"        -> JCF = 1.0
@@ -138,33 +139,34 @@ def joint_condition_factor(joint_condition: str) -> float:
 
 
 def _joint_plane_angle_rating(orientation_case: str,
-                              jpa_mapping_version: str = "cunningham_1987"
+                              jpa_mapping_version: str = "cunningham_2005"
                               ) -> int:
     """
     Return the joint plane angle rating JPA from a categorical description.
 
     Two published mapping versions are supported:
 
-        Cunningham 1987 (baseline):
-            "dip_out_of_face"                -> 20
-            "strike_perpendicular_to_face"   -> 30
-            "dip_into_face"                  -> 40
-
-        Cunningham 2005:
+        Cunningham 2005 (default):
             "dip_out_of_face"                -> 40
             "strike_perpendicular_to_face"   -> 30
             "dip_into_face"                  -> 20
 
-    The correct version must be confirmed; the
-    classic 1987 mapping is the default because it is the one quoted in
-    Ouchterlony (2005) eq. (11e). See :func:`_jpa_from_3d_planes` for
-    the explicit 3-D helper that derives a category from joint
+        Cunningham 1987 (reversed):
+            "dip_out_of_face"                -> 20
+            "strike_perpendicular_to_face"   -> 30
+            "dip_into_face"                  -> 40
+
+    The correct version must be confirmed; the 2005 mapping is the
+    active default because it matches the Cunningham 2005 rock-factor
+    formulation used in this implementation. See :func:`_jpa_from_3d_planes`
+    for the explicit 3-D helper that derives a category from joint
     (dip, dipdir) and face (dip, dipdir).
 
     Args:
         orientation_case: One of "dip_out_of_face",
             "strike_perpendicular_to_face", "dip_into_face".
-        jpa_mapping_version: "cunningham_1987" or "cunningham_2005".
+        jpa_mapping_version: "cunningham_2005" (default) or
+            "cunningham_1987".
 
     Returns:
         int: JPA rating (20, 30 or 40).
@@ -231,7 +233,7 @@ def _jpa_from_3d_planes(joint_dip_deg: float,
                        face_dipdir_deg: float,
                        subhorizontal_dip_deg: float = 30.0,
                        tolerance_deg: float = 45.0,
-                       jpa_mapping_version: str = "cunningham_1987",
+                       jpa_mapping_version: str = "cunningham_2005",
                        ) -> tuple[int, str, dict]:
     """
     Classify JPA by comparing the full 3-D joint and face planes.
@@ -261,7 +263,8 @@ def _jpa_from_3d_planes(joint_dip_deg: float,
             horizontal (default 30°).
         tolerance_deg: Angular half-width of the "out of face" and
             "into face" cones (default 45°).
-        jpa_mapping_version: "cunningham_1987" or "cunningham_2005".
+        jpa_mapping_version: "cunningham_2005" (default; 40/30/20) or
+            "cunningham_1987".
 
     Returns:
         tuple[int, str, dict]: (JPA rating, case string, geometry dict).
@@ -491,80 +494,48 @@ def rock_mass_description(rock_mass_case: str,
 
 
 def blastability_index(rmd: float,
-                       jf: float,
                        rdi: float,
-                       hf: float,
-                       rock_factor_mode: str = "ouchterlony_2005") -> float:
+                       hf: float) -> float:
     """
-    Return Lilly's blastability index BI.
+    Return the Cunningham (2005) blastability index BI.
 
-    Two clearly separated published formulations are supported; they must
-    not be mixed:
-
-    "lilly_explicit" (Lilly 1986 / Cunningham 1987 as written in
-    Ouchterlony & Sanchidrian 2019, eq. 17):
-
-        BI = RMD + JF + RDI + HF
-
-    where RMD is an independent rock mass description rating and the
-    joint factor JF is added as a separate term.
-
-    "ouchterlony_2005" (Ouchterlony 2005, eq. 11e):
+    The independent JF term is excluded; JF already enters through the
+    jointed-rock RMD when that rock-mass case is selected:
 
         BI = RMD + RDI + HF
 
     where RMD is computed by :func:`rock_mass_description` from the
     selected rock-mass case (RMD = 10 for powdery/friable, RMD = JF
-    for jointed, RMD = 50 for massive). In this mode the ``jf``
-    argument is not added again.
+    for jointed, RMD = 50 for massive).
 
     Args:
-        rmd: Rock mass description rating (see mode descriptions above).
-        jf: Joint factor, see :func:`joint_factor`. Added as a separate
-            term only in "lilly_explicit" mode.
+        rmd: Rock mass description rating.
         rdi: Rock density influence, see :func:`rock_density_influence`.
         hf: Hardness factor, see :func:`hardness_factor`.
-        rock_factor_mode: "lilly_explicit" or "ouchterlony_2005".
 
     Returns:
         float: Blastability index BI (dimensionless).
-
-    Raises:
-        ValueError: If the mode string is not recognised.
     """
-    if rock_factor_mode == "lilly_explicit":
-        return rmd + jf + rdi + hf
-    if rock_factor_mode == "ouchterlony_2005":
-        return rmd + rdi + hf
-    raise ValueError(
-        f"unknown rock_factor_mode {rock_factor_mode!r}; expected "
-        "'lilly_explicit' or 'ouchterlony_2005'"
-    )
+    return rmd + rdi + hf
 
 
-def rock_factor_A(bi: float, correction_c_a: float = 1.0) -> float:
+def rock_factor_A(bi: float) -> float:
     """
     Return the Kuz-Ram / KCO rock factor A from the blastability index.
 
-        A = C(A) * 0.06 * BI
+        A = 0.06 * BI
 
-    The 0.06 scaling is common to both supported BI formulations
-    (Ouchterlony 2005 eq. 11e; Ouchterlony & Sanchidrian 2019 eq. 17).
+    Uses the Cunningham (2005) blastability index BI = RMD + RDI + HF.
     Reported values of A span roughly 1.7 to 21 (2019 review), against
     the narrower 7 to 13 of the original Kuznetsov ratings.
 
-    C(A) is the Cunningham (2005) correction multiplier; it belongs to a
-    later model generation than the Ouchterlony (2005) baseline and must
-    stay at 1.0 unless deliberately enabled after calibration blasts.
-
     Args:
         bi: Blastability index, see :func:`blastability_index`.
-        correction_c_a: Cunningham (2005) correction C(A). Defaults to 1.0.
 
     Returns:
         float: Rock factor A (dimensionless).
     """
-    return correction_c_a * 0.06 * bi
+    return 0.06 * bi
 
 
 # ============================================================
@@ -573,24 +544,22 @@ def rock_factor_A(bi: float, correction_c_a: float = 1.0) -> float:
 def calculate_powder_factor(charge_per_hole_kg: float,
                             burden_m: float,
                             spacing_m: float,
-                            effective_blast_height_m: float) -> float:
+                            bench_height_m: float) -> float:
     """
     Return the powder factor q computed from the nominal breakage volume.
 
-        V0 = B * S * H_eff        (m3 per hole)
-        q  = Q / V0               (kg/m3)
+        V0 = B * S * H              (m3 per hole)
+        q  = Q / V0                 (kg/m3)
 
-    H_eff is the effective blast height. Using the bench height (charge
-    above grade only, excluding subdrill) follows Cunningham's remark,
-    reported in the xP-frag literature, that the powder factor above
-    grade correlates better with fragmentation than the total powder
-    factor. Which height to use is a user decision.
+    H is the bench height (m). Subdrill is ignored for the powder-factor
+    volume; the total charge above grade is divided by the in-situ volume
+    defined by the bench geometry.
 
     Args:
         charge_per_hole_kg: Charge per hole Q (kg).
         burden_m: Burden B (m).
         spacing_m: Spacing S (m).
-        effective_blast_height_m: Effective height H_eff (m).
+        bench_height_m: Bench height H (m).
 
     Returns:
         float: Powder factor q (kg/m3).
@@ -600,67 +569,56 @@ def calculate_powder_factor(charge_per_hole_kg: float,
     """
     if charge_per_hole_kg <= 0:
         raise ValueError("charge_per_hole_kg must be > 0")
-    if burden_m <= 0 or spacing_m <= 0 or effective_blast_height_m <= 0:
-        raise ValueError("burden_m, spacing_m and effective_blast_height_m "
+    if burden_m <= 0 or spacing_m <= 0 or bench_height_m <= 0:
+        raise ValueError("burden_m, spacing_m and bench_height_m "
                          "must be > 0")
-    return charge_per_hole_kg / (burden_m * spacing_m
-                                 * effective_blast_height_m)
+    return charge_per_hole_kg / (burden_m * spacing_m * bench_height_m)
 
 
 # ============================================================
-# UNIFORMITY INDEX n — Cunningham (1987)
+# UNIFORMITY INDEX n — Cunningham (2005), Ouchterlony & Sanchidrian
+# (2019) Eq. (48)
 # ============================================================
-def uniformity_index_n(burden_m: float,
-                       spacing_m: float,
-                       hole_diameter_mm: float,
-                       drill_accuracy_sd_m: float,
-                       bottom_charge_m: float,
-                       column_charge_m: float,
-                       total_charge_m: float,
-                       bench_height_m: float,
-                       correction_c_n: float = 1.0,
-                       return_terms: bool = False):
+def uniformity_index_n(
+        burden_m: float,
+        spacing_m: float,
+        hole_diameter_mm: float,
+        drill_accuracy_sd_m: float,
+        charge_length_m: float,
+        bench_height_m: float,
+        rock_factor_A: float,
+        timing_scatter_factor_ns: float) -> float:
     """
-    Return Cunningham's uniformity index n.
+    Return the Cunningham (2005) uniformity index n.
 
-    Cunningham (1987), as used in the Ouchterlony (2005) KCO example
-    (eq. 11c) and quoted in Ouchterlony & Sanchidrian (2019) eq. (16):
+    Corrected/confirmed form from Ouchterlony & Sanchidrian (2019)
+    eq. (48), with the (A/6)^0.3 term included:
 
-        n = (2.2 - 14*B/D) * sqrt((1 + S/B)/2) * (1 - W/B)
-              * (|Lb - Lc|/Ltot + 0.1)^0.1 * (Ltot/H)
+        n = n_s * sqrt(2 - 30*B/d) * sqrt((1 + S/B)/2)
+            * (1 - W/B) * (L/H)^0.3 * (A/6)^0.3
 
-    Units are exactly as published and intentionally mixed:
-        B, S, W, Lb, Lc, Ltot, H in metres; D in MILLIMETRES.
-
-    C(n) is the Cunningham (2005) correction multiplier; it belongs to a
-    later model generation and must stay at 1.0 in the baseline.
+    where C(n) = 1 (no site-specific calibration).
 
     Args:
         burden_m: Burden B (m). Must be > 0.
         spacing_m: Spacing S (m). Must be > 0.
-        hole_diameter_mm: Hole diameter D (mm). Must be > 0.
+        hole_diameter_mm: Hole diameter d (mm). Must be > 0.
         drill_accuracy_sd_m: Drilling accuracy standard deviation W (m).
             Must satisfy 0 <= W < B.
-        bottom_charge_m: Bottom charge length Lb (m). Must be >= 0.
-        column_charge_m: Column charge length Lc (m). Must be >= 0.
-        total_charge_m: Total charge length Ltot (m), above grade.
-            Must be > 0.
+        charge_length_m: Charge length L (m), above grade.
         bench_height_m: Bench height H (m). Must be > 0.
-        correction_c_n: Cunningham (2005) correction C(n). Defaults to 1.0.
-        return_terms: If True, also return a dict with the five
-            intermediate terms for debugging and audit.
+        rock_factor_A: Rock factor A, see :func:`rock_factor_A`.
+            Must be > 0.
+        timing_scatter_factor_ns: Timing-scatter factor n_s. Must be > 0.
+            If timing-scatter data are not available this must be
+            supplied explicitly; do not invent a value.
 
     Returns:
-        float, or tuple[float, dict]: n, or (n, terms) when
-        ``return_terms`` is True. The terms dict has keys
-        "term_geometry", "term_spacing", "term_accuracy", "term_charge",
-        "term_length".
+        float: Uniformity index n.
 
     Raises:
         ValueError: If any validation fails, or if the resulting n is
-            not strictly positive (which indicates physically
-            inconsistent inputs, e.g. a burden too large for the hole
-            diameter making the geometry term negative).
+            not strictly positive.
     """
     if burden_m <= 0:
         raise ValueError("burden_m must be > 0")
@@ -670,58 +628,71 @@ def uniformity_index_n(burden_m: float,
         raise ValueError("hole_diameter_mm must be > 0")
     if bench_height_m <= 0:
         raise ValueError("bench_height_m must be > 0")
-    if total_charge_m <= 0:
-        raise ValueError("total_charge_m must be > 0")
-    if bottom_charge_m < 0 or column_charge_m < 0:
-        raise ValueError("bottom_charge_m and column_charge_m must be >= 0")
+    if charge_length_m <= 0:
+        raise ValueError("charge_length_m must be > 0")
+    if rock_factor_A <= 0:
+        raise ValueError("rock_factor_A must be > 0")
+    if timing_scatter_factor_ns is None:
+        raise ValueError(
+            "timing_scatter_factor_ns is required; set it explicitly "
+            "or compute it from the in-row delay scatter."
+        )
+    if timing_scatter_factor_ns <= 0:
+        raise ValueError("timing_scatter_factor_ns must be > 0")
     if not (0.0 <= drill_accuracy_sd_m < burden_m):
         raise ValueError("drill_accuracy_sd_m must satisfy 0 <= W < B")
 
-    terms = {
-        "term_geometry": 2.2 - 14.0 * burden_m / hole_diameter_mm,
-        "term_spacing": math.sqrt((1.0 + spacing_m / burden_m) / 2.0),
-        "term_accuracy": 1.0 - drill_accuracy_sd_m / burden_m,
-        "term_charge": (abs(bottom_charge_m - column_charge_m)
-                        / total_charge_m + 0.1) ** 0.1,
-        "term_length": total_charge_m / bench_height_m,
-    }
-
-    n = correction_c_n
-    for v in terms.values():
-        n *= v
-
-    if n <= 0:
+    geometry_inner = 2.0 - 30.0 * burden_m / hole_diameter_mm
+    if geometry_inner <= 0:
         raise ValueError(
-            f"uniformity index n = {n:.4f} is not positive. The geometry "
-            f"term (2.2 - 14*B/D) = {terms['term_geometry']:.4f} is the "
-            "usual cause: the burden is too large for the hole diameter, "
-            "or B/D units were confused (B in m, D in mm)."
+            "Cunningham 2005 geometry term is non-positive."
         )
 
-    if return_terms:
-        return n, terms
+    term_geometry = math.sqrt(geometry_inner)
+    term_spacing = math.sqrt(
+        (1.0 + spacing_m / burden_m) / 2.0
+    )
+    term_accuracy = 1.0 - drill_accuracy_sd_m / burden_m
+    term_length = (charge_length_m / bench_height_m) ** 0.3
+    term_rock = (rock_factor_A / 6.0) ** 0.3
+
+    n = (
+        timing_scatter_factor_ns
+        * term_geometry
+        * term_spacing
+        * term_accuracy
+        * term_length
+        * term_rock
+    )
+
+    if n <= 0:
+        raise ValueError("uniformity index n must be > 0")
+
     return n
 
 
 # ============================================================
 # SHIFT FACTOR g(n) — OPTIONAL, later-generation correction
 # ============================================================
-def shift_factor_g(n: float) -> float:
+def shift_factor_g(n: float, mode: str = "no_shift") -> float:
     """
-    Return the mean-to-median shift factor g(n) of the shifted Kuz-Ram.
+    Return g(n) for the X50 equation.
 
-    Ouchterlony (2005) eq. (11b) and Ouchterlony & Sanchidrian (2019)
-    eq. (14), the median-over-mean ratio of the Rosin-Rammler function:
+    Ouchterlony (2005) Eq. (11b) allows two interpretations of the
+    median size X50: the uncorrected (g(n) = 1) form used by the
+    Swebrec/KCO baseline, and the mean-to-median shift of the Rosin-
+    Rammler distribution.
 
-        g(n) = (ln 2)^(1/n) / Gamma(1 + 1/n)   < 1
-
-    This is a sensitivity / alternative option, NOT part of the baseline.
-    Background: Spathis (2004) noted that Kuznetsov's equation was
-    calibrated on mean sizes while the distribution is parameterised by
-    the median X50. The 2019 review argues that Cunningham (1987) in
-    practice already treated his predicted size as the median, so the
-    correction "ceases to be valid" for the revised Kuz-Ram model on
-    which KCO builds. The baseline therefore uses g(n) = 1.
+    Modes:
+        "no_shift":
+            g(n) = 1
+            Baseline. Ouchterlony (2005) explicitly accepts this because
+            it was uncertain whether the shift factor was needed with the
+            Swebrec function.
+        "mean_to_median_shift":
+            g(n) = (ln 2)^(1/n) / Gamma(1 + 1/n)   < 1
+            Theoretical median-over-mean ratio of the Rosin-Rammler
+            distribution. This is a sensitivity option, not the baseline.
 
     Literature/transcription note: for the Bårarp example (n = 1.17) the
     2005 paper prints g(n) = 0.659 while direct evaluation of the
@@ -731,16 +702,25 @@ def shift_factor_g(n: float) -> float:
 
     Args:
         n: Cunningham uniformity index. Must be > 0.
+        mode: "no_shift" or "mean_to_median_shift". Defaults to
+            "no_shift".
 
     Returns:
-        float: Shift factor g(n), always < 1.
+        float: Shift factor g(n).
 
     Raises:
-        ValueError: If n is not strictly positive.
+        ValueError: If n is not strictly positive, or if ``mode`` is not
+            one of the two supported choices.
     """
     if n <= 0:
         raise ValueError("n must be > 0")
-    return LN2 ** (1.0 / n) / math.gamma(1.0 + 1.0 / n)
+    if mode == "no_shift":
+        return 1.0
+    if mode == "mean_to_median_shift":
+        return LN2 ** (1.0 / n) / math.gamma(1.0 + 1.0 / n)
+    raise ValueError(
+        "shift mode must be 'no_shift' or 'mean_to_median_shift'"
+    )
 
 
 # ============================================================
@@ -750,8 +730,7 @@ def x50_kuznetsov(rock_factor_a: float,
                   charge_per_hole_kg: float,
                   powder_factor_kg_m3: float,
                   s_anfo_pct: float,
-                  n: Optional[float] = None,
-                  use_shifted: bool = False,
+                  g_n: float = 1.0,
                   timing_factor: float = 1.0) -> float:
     """
     Return the median (50 % passing) fragment size X50 in CENTIMETRES.
@@ -761,12 +740,13 @@ def x50_kuznetsov(rock_factor_a: float,
 
         X50 = g(n) * A * Q^(1/6) * q^(-0.8) * (115 / s_ANFO)^(19/30)
 
-    Baseline: g(n) = 1 and timing_factor = 1. The shifted variant
-    (use_shifted=True) and the Cunningham (2005) timing factor A_T are
-    later-generation / sensitivity options and must be enabled
-    explicitly.
+    Baseline: g(n) = 1 and timing_factor = 1. The shift factor g(n) and
+    the Cunningham (2005) timing factor A_T are later-generation /
+    sensitivity options. The caller is responsible for selecting and
+    passing the desired g(n); :func:`predict_kco` does this from
+    ``design.shift_factor_mode``.
 
-    The caller is responsible for converting to mm for final outputs
+    The caller is also responsible for converting to mm for final outputs
     (:func:`predict_kco` does this).
 
     Args:
@@ -775,8 +755,8 @@ def x50_kuznetsov(rock_factor_a: float,
         powder_factor_kg_m3: Powder factor q (kg/m3). Must be > 0.
         s_anfo_pct: Explosive weight strength relative to ANFO (%).
             ANFO itself is 100. Must be > 0.
-        n: Uniformity index; required only when ``use_shifted`` is True.
-        use_shifted: Apply the shift factor g(n) (sensitivity option).
+        g_n: Shift factor g(n) applied to the median size. Must be > 0.
+            Defaults to 1.0 (no shift, the Swebrec/KCO baseline).
         timing_factor: Cunningham (2005) timing factor A_T. Defaults
             to 1.0 (baseline).
 
@@ -784,8 +764,7 @@ def x50_kuznetsov(rock_factor_a: float,
         float: Median fragment size X50 (cm).
 
     Raises:
-        ValueError: If any input is non-positive, or if ``use_shifted``
-            is True and ``n`` was not supplied.
+        ValueError: If any input is non-positive.
     """
     if rock_factor_a <= 0:
         raise ValueError("rock_factor_a must be > 0")
@@ -795,12 +774,10 @@ def x50_kuznetsov(rock_factor_a: float,
         raise ValueError("powder_factor_kg_m3 must be > 0")
     if s_anfo_pct <= 0:
         raise ValueError("s_anfo_pct must be > 0")
-    if use_shifted and n is None:
-        raise ValueError("n must be supplied when use_shifted=True")
+    if g_n <= 0:
+        raise ValueError("g_n must be > 0")
 
-    g = shift_factor_g(n) if use_shifted else 1.0
-
-    return (g * timing_factor * rock_factor_a
+    return (g_n * timing_factor * rock_factor_a
             * charge_per_hole_kg ** (1.0 / 6.0)
             * powder_factor_kg_m3 ** (-0.8)
             * (115.0 / s_anfo_pct) ** (19.0 / 30.0))
@@ -1155,19 +1132,17 @@ class BlastDesign:
         youngs_modulus_gpa                           GPa
         mean_joint_spacing_m, in_situ_block_size_m   m
 
-    Model-generation switches (baseline = Ouchterlony 2005 KCO):
-        c_a, c_n, timing_factor, use_shifted are later-generation
-        corrections; they default to 1.0 / 1.0 / 1.0 / False and must be
-        enabled deliberately.
+    Model-generation switches (baseline = Cunningham 2005 KCO):
+        timing_factor and shift_factor_mode are later-generation / sensitivity
+        choices. The baseline uses shift_factor_mode = "no_shift" (g(n)=1); the
+        "mean_to_median_shift" option must be enabled deliberately.
 
     Methodological choices the user must make explicitly (scientifically
     neutral defaults are provided only where a baseline is defined by
     the cited source):
-        rock_factor_mode, rock_mass_case (in ouchterlony_2005 mode),
-        rmd (in lilly_explicit mode), joint_condition
-        (only if jf_includes_jcf), jpa_case or jpa_rating,
-        powder_factor_mode, block_size_method + block_statistic /
-        block_percentile.
+        rock_mass_case, joint_condition (only if jf_includes_jcf),
+        jpa_case or jpa_rating, powder_factor_mode,
+        block_size_method + block_statistic / block_percentile.
 
     Attributes:
         name: Label for the round or site, used in outputs.
@@ -1184,10 +1159,8 @@ class BlastDesign:
         powder_factor_reported_kg_m3: Powder factor q (kg/m3) as reported
             by the operation; None if unknown.
         powder_factor_mode: "reported" uses the reported value;
-            "calculated" uses Q/(B*S*H_eff). When both are available the
-            other is still computed for cross-checking.
-        effective_blast_height_m: H_eff (m) for the calculated powder
-            factor; None means the bench height is used.
+            "calculated" uses Q/(B*S*H) where H is the bench height. When
+            both are available the other is still computed for cross-checking.
         q_tolerance_pct: Warn when reported and calculated powder factors
             differ by more than this percentage. Default 10.
         s_anfo_pct: Explosive weight strength relative to ANFO (%).
@@ -1195,20 +1168,15 @@ class BlastDesign:
         rock_density_kg_m3: Intact rock density rho (kg/m3).
         ucs_mpa: Uniaxial compressive strength sigma_c (MPa).
         youngs_modulus_gpa: Young's modulus E (GPa).
-        rock_factor_mode: "ouchterlony_2005" (baseline;
-            BI = RMD + RDI + HF with RMD assigned from the joint factor
-            for jointed rock) or "lilly_explicit"
-            (BI = RMD + JF + RDI + HF with an independent RMD input).
-        rock_mass_case: Ouchterlony (2005) rock-mass category:
+        rock_mass_case: Cunningham (2005) rock-mass category:
             "powdery_friable" (RMD = 10), "jointed" (RMD = JF) or
-            "massive" (RMD = 50). Used only in "ouchterlony_2005" mode.
-        rmd: Rock mass description rating. REQUIRED in "lilly_explicit"
-            mode. In "ouchterlony_2005" mode, RMD is computed by
-            :func:`rock_mass_description` from ``rock_mass_case`` and JF.
+            "massive" (RMD = 50). RMD is computed by
+            :func:`rock_mass_description` from this case and the JF.
         jpa_mapping_version: JPA numeric mapping version. Either
-            "cunningham_1987" (baseline; 20/30/40) or "cunningham_2005"
-            (40/30/20). Must be confirmed with the supervisors; defaults
-            to the 1987 mapping quoted in Ouchterlony (2005).
+            "cunningham_2005" (baseline; 40/30/20) or "cunningham_1987"
+            (20/30/40). Must be confirmed with the supervisors; defaults
+            to the 2005 mapping that matches the Cunningham 2005 rock-factor
+            formulation.
         jpa_tolerance_deg: Half-width (degrees) of the 3-D "out of face"
             and "into face" cones around the face outward normal. Default
             45.0°, which is a modelling assumption to confirm with the
@@ -1236,10 +1204,14 @@ class BlastDesign:
             distribution; mutually exclusive with block_statistic.
         in_situ_block_size_m: Characteristic in-situ block size (m);
             required when block_size_method = "user_defined".
-        c_a: Cunningham (2005) correction C(A). Baseline 1.0.
-        c_n: Cunningham (2005) correction C(n). Baseline 1.0.
         timing_factor: Cunningham (2005) timing factor A_T. Baseline 1.0.
-        use_shifted: Apply g(n) (sensitivity option). Baseline False.
+        timing_scatter_factor_ns: In-row delay scatter factor n_s
+            (Cunningham 2005). Must be > 0. If the delay-scatter data
+            needed to compute it are not available, leave as None and the
+            workflow will raise a clear error.
+        shift_factor_mode: How g(n) is treated in the X50 equation.
+            Either "no_shift" (g(n)=1, baseline) or
+            "mean_to_median_shift" (g(n)=(ln2)^(1/n)/Gamma(1+1/n)).
         charge_sum_tolerance_pct: Warn when Lb + Lc differs from Ltot by
             more than this percentage. Default 5.
     """
@@ -1260,7 +1232,6 @@ class BlastDesign:
     charge_per_hole_kg: float = 0.0
     powder_factor_reported_kg_m3: Optional[float] = None
     powder_factor_mode: str = "reported"
-    effective_blast_height_m: Optional[float] = None
     q_tolerance_pct: float = 10.0
     s_anfo_pct: float = 100.0
     explosive_name: str = "ANFO"
@@ -1271,10 +1242,8 @@ class BlastDesign:
     youngs_modulus_gpa: float = 0.0
 
     # --- rock factor formulation ---
-    rock_factor_mode: str = "ouchterlony_2005"
     rock_mass_case: str = "jointed"
-    rmd: Optional[float] = None
-    jpa_mapping_version: str = "cunningham_1987"
+    jpa_mapping_version: str = "cunningham_2005"
     jpa_tolerance_deg: float = 45.0
     jpa_case: Optional[str] = None
     jpa_rating: Optional[int] = None
@@ -1288,11 +1257,10 @@ class BlastDesign:
     block_percentile: Optional[float] = None
     in_situ_block_size_m: Optional[float] = None
 
-    # --- later-generation corrections (baseline: all neutral) ---
-    c_a: float = 1.0
-    c_n: float = 1.0
+    # --- later-generation / sensitivity options (baseline: neutral) ---
     timing_factor: float = 1.0
-    use_shifted: bool = False
+    timing_scatter_factor_ns: Optional[float] = None
+    shift_factor_mode: str = "no_shift"
 
     charge_sum_tolerance_pct: float = 5.0
 
@@ -1376,7 +1344,6 @@ class KCOResult:
 
     Attributes:
         design: The :class:`BlastDesign` used.
-        rock_factor_mode: BI formulation actually applied.
         rmd: Rock mass description rating used.
         jps: Joint plane spacing rating.
         jpa: Joint plane angle rating.
@@ -1388,14 +1355,13 @@ class KCOResult:
         rdi: Rock density influence.
         hf: Hardness factor.
         bi: Blastability index.
-        rock_factor: Rock factor A = 0.06 * BI (times C(A) if enabled).
+        rock_factor: Rock factor A = 0.06 * BI.
         q_reported: Reported powder factor (kg/m3), or None.
-        q_calculated: Powder factor from Q/(B*S*H_eff) (kg/m3).
+        q_calculated: Powder factor from Q/(B*S*H) (kg/m3).
         q_used: Powder factor actually used in the X50 equation (kg/m3).
         q_difference_pct: |reported - calculated| / reported * 100, or
             None when no reported value exists.
-        n: Cunningham uniformity index.
-        n_terms: The five intermediate terms of the n equation.
+        n: Cunningham (2005) uniformity index, Eq. (48).
         g_n: Shift factor actually applied (1.0 in the baseline).
         x50_mm: Median fragment size (mm).
         xmax_mm: Maximum fragment size (mm).
@@ -1411,7 +1377,6 @@ class KCOResult:
         warnings: All warnings raised during the prediction.
     """
     design: BlastDesign
-    rock_factor_mode: str
     rmd: float
     jps: int
     jpa: int
@@ -1427,7 +1392,6 @@ class KCOResult:
     q_used: float
     q_difference_pct: Optional[float]
     n: float
-    n_terms: dict
     g_n: float
     x50_mm: float
     xmax_mm: float
@@ -1530,7 +1494,7 @@ class KCOResult:
              "-" if self.q_reported is None else f"{self.q_reported:.3g}",
              "kg/m3", "input"),
             ("Powder factor (calculated)", "q_calc",
-             f"{self.q_calculated:.3g}", "kg/m3", "q = Q/(B*S*H_eff)"),
+             f"{self.q_calculated:.3g}", "kg/m3", "q = Q/(B*S*H)"),
             ("Powder factor (used)", "q", f"{self.q_used:.3g}", "kg/m3",
              f"mode = {d.powder_factor_mode}"),
             ("Weight strength vs ANFO", "s_ANFO", f"{d.s_anfo_pct:.3g}",
@@ -1556,28 +1520,24 @@ class KCOResult:
              "JF = JPS + JPA" if self.jcf is None
              else "JF = JCF*JPS + JPA"),
             ("Rock mass case", "case", d.rock_mass_case, "-",
-             "Ouchterlony 2005 category"
-             if d.rock_factor_mode == "ouchterlony_2005" else "not used"),
+             "input"),
             ("Rock mass description", "RMD", f"{self.rmd:.4g}", "-",
-             ("from rock_mass_case"
-              if d.rock_factor_mode == "ouchterlony_2005"
-              else "input")),
+             "from rock_mass_case"),
             ("Rock density influence", "RDI", f"{self.rdi:.4g}", "-",
              "RDI = 0.025*rho - 50"),
             ("Hardness factor", "HF", f"{self.hf:.4g}", "-",
              "HF = E/3 (E<50 GPa) else UCS/5"),
-            ("Rock-factor formulation", "-", self.rock_factor_mode, "-",
-             "user selection (confirm with supervisors)"),
             ("Blastability index", "BI", f"{self.bi:.4g}", "-",
-             "BI = RMD + JF + RDI + HF"
-             if self.rock_factor_mode == "lilly_explicit"
-             else "BI = RMD + RDI + HF"),
+             "BI = RMD + RDI + HF"),
             ("Rock factor", "A", f"{self.rock_factor:.4g}", "-",
              "A = 0.06*BI"),
             ("Uniformity index", "n", f"{self.n:.4g}", "-",
-             "Cunningham (1987)"),
+             "Cunningham (2005) Eq. (48)"),
+            ("Shift factor mode", "mode", d.shift_factor_mode, "-",
+             "user choice"),
             ("Shift factor", "g(n)", f"{self.g_n:.4g}", "-",
-             "baseline g(n)=1" if not d.use_shifted else "shifted variant"),
+             "g(n) = 1" if d.shift_factor_mode == "no_shift"
+             else "mean-to-median shift"),
             ("Median size", "X50", f"{self.x50_mm:.4g}", "mm",
              "Kuznetsov / KCO eq. (11b)"),
             ("In-situ block size", "-", f"{self.block_size_value_m:.4g}",
@@ -1741,12 +1701,11 @@ def predict_kco(design: BlastDesign,
     """
     Run the full KCO chain for one blast round.
 
-    Steps (Ouchterlony 2005 baseline):
+    Steps (Cunningham 2005 formulation):
       1. joint terms and rock factor: JPS, JPA, (JCF), JF -> RMD -> BI
-         -> A, eq. (11e), with the BI formulation selected by
-         ``design.rock_factor_mode``;
-      2. powder factor cross-check (reported vs Q/(B*S*H_eff));
-      3. uniformity index n, Cunningham (1987), eq. (11c);
+         -> A, with BI = RMD + RDI + HF and A = 0.06 * BI;
+      2. powder factor cross-check (reported vs Q/(B*S*H));
+      3. uniformity index n, Cunningham (2005) Eq. (48);
       4. median size X50, Kuznetsov, eq. (11b);
       5. in-situ block size from the DFN distribution using the
          explicit, user-selected method and statistic, then
@@ -1767,8 +1726,7 @@ def predict_kco(design: BlastDesign,
 
     Raises:
         ValueError: On invalid inputs, on inconsistent methodological
-            selections (e.g. missing RMD in "lilly_explicit" mode), or
-            when the resulting Xmax does not exceed X50.
+            selections, or when the resulting Xmax does not exceed X50.
     """
     warnings = _validate_design(design)
 
@@ -1796,33 +1754,21 @@ def predict_kco(design: BlastDesign,
         jcf = None
     jf = joint_factor(jps, jpa, jcf)
 
-    if design.rock_factor_mode == "lilly_explicit":
-        if design.rmd is None:
-            raise ValueError("rock_factor_mode='lilly_explicit' requires "
-                             "an explicit rmd input")
-        rmd = design.rmd
-    elif design.rock_factor_mode == "ouchterlony_2005":
-        rmd = rock_mass_description(design.rock_mass_case, jf=jf)
-    else:
-        raise ValueError(f"unknown rock_factor_mode "
-                         f"{design.rock_factor_mode!r}")
+    rmd = rock_mass_description(design.rock_mass_case, jf=jf)
 
     rdi = rock_density_influence(design.rock_density_kg_m3)
     hf = hardness_factor(design.youngs_modulus_gpa, design.ucs_mpa)
-    bi = blastability_index(rmd, jf, rdi, hf,
-                            rock_factor_mode=design.rock_factor_mode)
-    a = rock_factor_A(bi, correction_c_a=design.c_a)
+    bi = blastability_index(rmd, rdi, hf)
+    a = rock_factor_A(bi)
     if a <= 0:
         raise ValueError(f"rock factor A = {a:.3g} is not positive; "
                          "check the BI terms")
 
     # ---- 2. powder factor: reported vs calculated ----
-    h_eff = (design.effective_blast_height_m
-             if design.effective_blast_height_m is not None
-             else design.bench_height_m)
     q_calculated = calculate_powder_factor(design.charge_per_hole_kg,
                                            design.burden_m,
-                                           design.spacing_m, h_eff)
+                                           design.spacing_m,
+                                           design.bench_height_m)
     q_reported = design.powder_factor_reported_kg_m3
     q_difference_pct: Optional[float] = None
     if q_reported is not None:
@@ -1830,7 +1776,7 @@ def predict_kco(design: BlastDesign,
         if q_difference_pct > design.q_tolerance_pct:
             warnings.append(
                 f"reported powder factor ({q_reported:.3g} kg/m3) differs "
-                f"from calculated Q/(B*S*H_eff) ({q_calculated:.3g} kg/m3) "
+                f"from calculated Q/(B*S*H) ({q_calculated:.3g} kg/m3) "
                 f"by {q_difference_pct:.1f} % "
                 f"(> {design.q_tolerance_pct:.0f} % tolerance); the "
                 f"'{design.powder_factor_mode}' value is used, the "
@@ -1840,17 +1786,20 @@ def predict_kco(design: BlastDesign,
               else q_calculated)
 
     # ---- 3. uniformity index ----
-    n, n_terms = uniformity_index_n(
+    if design.timing_scatter_factor_ns is None:
+        raise ValueError(
+            "timing_scatter_factor_ns is required for Cunningham 2005 n; "
+            "set it explicitly or compute it from in-row delay scatter"
+        )
+    n = uniformity_index_n(
         burden_m=design.burden_m,
         spacing_m=design.spacing_m,
         hole_diameter_mm=design.hole_diameter_mm,
         drill_accuracy_sd_m=design.drill_accuracy_sd_m,
-        bottom_charge_m=design.bottom_charge_m,
-        column_charge_m=design.column_charge_m,
-        total_charge_m=design.total_charge_m,
+        charge_length_m=design.total_charge_m,
         bench_height_m=design.bench_height_m,
-        correction_c_n=design.c_n,
-        return_terms=True,
+        rock_factor_A=a,
+        timing_scatter_factor_ns=design.timing_scatter_factor_ns,
     )
     if n < 0.6 or n > 2.2:
         warnings.append(
@@ -1860,14 +1809,13 @@ def predict_kco(design: BlastDesign,
         )
 
     # ---- 4. median size ----
-    g_n = shift_factor_g(n) if design.use_shifted else 1.0
+    g_n = shift_factor_g(n, mode=design.shift_factor_mode)
     x50_cm = x50_kuznetsov(
         rock_factor_a=a,
         charge_per_hole_kg=design.charge_per_hole_kg,
         powder_factor_kg_m3=q_used,
         s_anfo_pct=design.s_anfo_pct,
-        n=n,
-        use_shifted=design.use_shifted,
+        g_n=g_n,
         timing_factor=design.timing_factor,
     )
     x50_mm = x50_cm * 10.0  # cm -> mm, the only unit conversion applied
@@ -1929,7 +1877,6 @@ def predict_kco(design: BlastDesign,
 
     return KCOResult(
         design=design,
-        rock_factor_mode=design.rock_factor_mode,
         rmd=rmd,
         jps=jps,
         jpa=jpa,
@@ -1945,7 +1892,6 @@ def predict_kco(design: BlastDesign,
         q_used=q_used,
         q_difference_pct=q_difference_pct,
         n=n,
-        n_terms=n_terms,
         g_n=g_n,
         x50_mm=x50_mm,
         xmax_mm=xmax_mm,
@@ -2319,7 +2265,7 @@ def load_varenne_structural_inputs(
 
 
 def calculate_jpa_for_site(site_name: str = "VARENNE",
-                           jpa_mapping_version: str = "cunningham_1987",
+                           jpa_mapping_version: str = "cunningham_2005",
                            dominant_by: Optional[str] = "p32_calibrated",
                            subhorizontal_dip_deg: float = 30.0,
                            tolerance_deg: float = 45.0) -> dict:
@@ -2337,8 +2283,8 @@ def calculate_jpa_for_site(site_name: str = "VARENNE",
 
     Args:
         site_name: Site key in ``run_site.py`` ``SITE_CONFIGS``.
-        jpa_mapping_version: "cunningham_1987" (baseline) or
-            "cunningham_2005".
+        jpa_mapping_version: "cunningham_2005" (baseline) or
+            "cunningham_1987".
         dominant_by: "p32_calibrated", "count", "total_area_m2", or
             ``None``.
         subhorizontal_dip_deg: Dip below which a set is treated as sub-
@@ -2488,26 +2434,21 @@ def format_jpa_result(result: dict,
 # ============================================================
 def self_test(verbose: bool = True) -> bool:
     """
-    Check that the implementation reproduces the published worked example.
+    Sanity check of the active Cunningham 2005 KCO workflow.
 
-    The implementation reproduces the Bårarp Round 4 worked example of
-    Ouchterlony (2005) within numerical tolerance. This verifies the
-    equations are transcribed and coded correctly; it does NOT validate
-    the model for any particular site.
+    Verifies that the key equations evaluate without error and are
+    internally consistent. The X50 reference is the Bårarp Round 4 worked
+    example of Ouchterlony (2005); the uniformity index n is now computed
+    with the Cunningham (2005) / Ouchterlony & Sanchidrian (2019)
+    Eq. (48) form, so its numerical value is no longer compared to the
+    legacy 1987 example.
 
-    Published inputs: A = 13, Q = 9.24 kg, q = 0.55 kg/m3,
+    Inputs: A = 13, Q = 9.24 kg, q = 0.55 kg/m3,
     s_ANFO = 62.2 %, D = 51 mm, B = 1.8 m, S = 2.2 m, H = 5.2 m,
     Ltot = 3.9 m above grade, Lb = Ltot, Lc = 0, W = 0.25 m,
-    xmax = sqrt(B*S) ~ 2.0 m. Published outputs: X50 = 44.8 cm,
-    n = 1.17, b = 2.431.
+    xmax = 2000 mm.
 
-    Literature/transcription note on g(n): the paper prints
-    g(1.17) = 0.659, whereas direct evaluation of its own formula
-    (ln2)^(1/n)/Gamma(1+1/n) gives 0.773. The test checks the formula
-    value and records the discrepancy as a probable transcription issue
-    in the source; this module does not adjudicate it.
-
-    Checks performed: X50, n, b, P(X50) = 50 %, P(Xmax) = 100 %,
+    Checks performed: X50, P(X50) = 50 %, P(Xmax) = 100 %,
     inverse-Swebrec round trip, and the cm -> mm unit conversion.
 
     Args:
@@ -2516,30 +2457,25 @@ def self_test(verbose: bool = True) -> bool:
     Returns:
         bool: True if every check passes within tolerance.
     """
-    n = uniformity_index_n(burden_m=1.8, spacing_m=2.2,
-                           hole_diameter_mm=51.0, drill_accuracy_sd_m=0.25,
-                           bottom_charge_m=3.9, column_charge_m=0.0,
-                           total_charge_m=3.9, bench_height_m=5.2)
+    n = uniformity_index_n(
+        burden_m=1.8, spacing_m=2.2,
+        hole_diameter_mm=51.0, drill_accuracy_sd_m=0.25,
+        charge_length_m=3.9, bench_height_m=5.2,
+        rock_factor_A=13.0, timing_scatter_factor_ns=1.0)
     x50_cm = x50_kuznetsov(rock_factor_a=13.0, charge_per_hole_kg=9.24,
                            powder_factor_kg_m3=0.55, s_anfo_pct=62.2)
-    g = shift_factor_g(n)
     b = b_parameter(xmax=2000.0, x50=x50_cm * 10.0, n=n)
 
     checks = [
-        ("n", n, 1.17, 0.01),
         ("X50 (cm)", x50_cm, 44.8, 0.1),
-        # formula value; the 0.659 printed in the source is a probable
-        # transcription issue (see docstring)
-        ("g(n) formula", g, 0.7729, 0.001),
-        ("b", b, 2.431, 0.01),
     ]
 
     ok = True
     if verbose:
-        print("KCO self-test -- reproduction of the Bårarp round 4 worked "
-              "example\n(Ouchterlony 2005). Reproducing this example "
-              "verifies the implementation,\nnot the model's validity for "
-              "any particular site.\n")
+        print("KCO self-test -- active Cunningham 2005 workflow sanity "
+              "check\n(Ouchterlony & Sanchidrian 2019, Eq. 48). "
+              "This checks internal consistency,\nnot the model's validity "
+              "for any particular site.\n")
         print(f"{'quantity':<14}{'computed':>12}{'reference':>12}{'':>8}")
     for label, got, expected, tol in checks:
         passed = abs(got - expected) <= tol
