@@ -1079,36 +1079,6 @@ def swebrec_size_at_passing(passing_pct, x50: float, xmax: float,
 
 
 # ============================================================
-# ROSIN-RAMMLER — REFERENCE / COMPARISON MODEL ONLY
-# ============================================================
-def rosin_rammler_passing(x, x50: float, n: float) -> np.ndarray:
-    """
-    Return the Rosin-Rammler cumulative percentage passing.
-
-    REFERENCE MODEL ONLY (reference_model_only = True): this is the
-    distribution of the original Kuz-Ram model, kept exclusively so the
-    KCO/Swebrec prediction can be compared against it. It must not be
-    used as the final post-blast prediction, because it underestimates
-    fines and has no upper size limit.
-
-        P_RR(x) = 100 * [1 - 2^(-(x/X50)^n)]
-
-    Args:
-        x: Fragment size(s), same unit as ``x50``.
-        x50: Median size (50 % passing).
-        n: Cunningham uniformity index.
-
-    Returns:
-        np.ndarray: Percentage passing in [0, 100].
-    """
-    x = np.asarray(x, dtype=float)
-    out = np.zeros_like(x)
-    pos = x > 0.0
-    out[pos] = 100.0 * (1.0 - 2.0 ** (-((x[pos] / x50) ** n)))
-    return out
-
-
-# ============================================================
 # INPUT CONTAINER
 # ============================================================
 @dataclass
@@ -1445,23 +1415,6 @@ class KCOResult:
             dict: e.g. ``{"X10": ..., "X20": ..., ..., "X100": ...}``.
         """
         return {f"X{int(p)}": float(self.size_at(p)) for p in levels}
-
-    # ---- reference model, comparison only ----
-    def passing_rosin_rammler(self, x_mm) -> np.ndarray:
-        """
-        Return the Rosin-Rammler (original Kuz-Ram) passing.
-
-        REFERENCE MODEL ONLY — provided for comparison plots against the
-        KCO/Swebrec prediction; not the final post-blast prediction.
-
-        Args:
-            x_mm: Fragment size(s) in millimetres.
-
-        Returns:
-            np.ndarray: Percentage passing in [0, 100].
-        """
-        return rosin_rammler_passing(x_mm, self.x50_mm, self.n)
-
     # ---- audit ----
     def audit_table(self) -> str:
         """
