@@ -273,7 +273,7 @@ ax.set_title("Fragment / Block Size Distribution -- VARENNE\n"
              fontweight="bold")
 ax.set_ylim(0, 100)
 ax.grid(True, which="both", linestyle="--", alpha=0.4)
-ax.legend(loc="lower right", fontsize=9)
+ax.legend(loc="upper left", fontsize=9)
 fig.tight_layout()
 out_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "10_kco_comparison")
 os.makedirs(out_dir, exist_ok=True)
