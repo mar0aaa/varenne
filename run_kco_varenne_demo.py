@@ -46,14 +46,20 @@
 #                                       but none specifically for
 #                                       "XL900" -- NOT used, to avoid
 #                                       guessing)
-#     - rock_density_kg_m3    = 2700.0
-#     - ucs_mpa                = 100.0
-#     - youngs_modulus_gpa     = 60.0
 #     - rock_mass_case         = "jointed" (reasonably justified: this
 #                                 whole project characterises Varenne as
 #                                 a jointed rock mass via DFN)
 #     - jpa_case               = "strike_perpendicular_to_face"
 #     - timing_scatter_factor_ns = 1.0 (Cunningham 2005 neutral baseline)
+#
+#   INTACT-ROCK PROPERTIES (professor-provided, corrected values):
+#     - rock_density_kg_m3    = 2700.0
+#     - ucs_mpa                = 200.0
+#     - youngs_modulus_gpa     = 60.0
+#
+#   KCO* CLASS WEIGHTING (professor's request): w_i = sum(V_j in class) /
+#   sum(V_j total), i.e. block-VOLUME weighting, not block-count
+#   weighting. Both weights are still reported in the output tables.
 #
 #   MEASURED (used as the WipFrag curve in the comparison plot):
 #     - "Résultats WIPFRAG.xlsx" in assets/ -- full-blast WipFrag
@@ -132,7 +138,7 @@ S_REAL = 4.1
 H_REAL = 14.0
 
 design = BlastDesign(
-    name="VARENNE (real geometry + ESTIMATED rock/explosive properties)",
+    name="VARENNE (real geometry + corrected intact-rock properties)",
     hole_diameter_mm=114.0,
     burden_m=B_REAL,
     spacing_m=S_REAL,
@@ -147,9 +153,9 @@ design = BlastDesign(
     powder_factor_mode="reported",
     s_anfo_pct=100.0,                        # ESTIMATE
     explosive_name="Dyno Nobel XL900 emulsion",
-    rock_density_kg_m3=2700.0,               # ESTIMATE
-    ucs_mpa=100.0,                           # ESTIMATE
-    youngs_modulus_gpa=60.0,                 # ESTIMATE
+    rock_density_kg_m3=2700.0,               # professor-provided
+    ucs_mpa=200.0,                           # professor-provided
+    youngs_modulus_gpa=60.0,                 # professor-provided
     rock_mass_case="jointed",
     jpa_case="strike_perpendicular_to_face", # ESTIMATE
     timing_scatter_factor_ns=1.0,
@@ -160,8 +166,8 @@ print("=" * 70)
 print("INPUT PROVENANCE -- see run_kco_varenne_demo.py header for full list")
 print("=" * 70)
 print("REAL: B=3.4 m, S=4.1 m, H=14.0 m, D=114 mm, Q=165 kg, q=0.8 kg/m3")
-print("ESTIMATED (unconfirmed): drill_accuracy_sd_m, s_anfo_pct, "
-     "rock_density_kg_m3, ucs_mpa, youngs_modulus_gpa, jpa_case")
+print("INTACT ROCK (professor-provided): rho=2700 kg/m3, UCS=200 MPa, E=60 GPa")
+print("ESTIMATED (unconfirmed): drill_accuracy_sd_m, s_anfo_pct, jpa_case")
 print("Observed but NOT usable as a curve: 3 oversize boulders ~1 m each")
 print()
 
@@ -196,19 +202,33 @@ print("\n" + kco_result.audit_table())
 print(f"\nGenerating REAL S x B x H DFN blast-cell realizations "
      f"(B={B_REAL}, S={S_REAL}, H={H_REAL} m, 30 seeds, PROVISIONAL count "
      "-- convergence not yet re-validated at these exact dimensions)...")
-blastcell = generate_blast_cell_realizations(
-    burden_m=B_REAL, spacing_m=S_REAL, bench_height_m=H_REAL,
-    seeds=list(range(3001, 3031)),
-    site_key="VARENNE",
-)
-sj_star_vols = blastcell["pooled_volumes_m3"]
-print(f"Pooled S x B x H block volumes (real, 30 realizations): "
-     f"{sj_star_vols.size} blocks")
-print(f"Saved: {blastcell['pooled_csv_path']}")
+REUSE_POOLED_CSV = True  # reuse the existing pooled CSV (same seeds) if present
+_pooled_csv = os.path.join(SCRIPT_DIR, "outputs", "VARENNE",
+                           "08_blastcell_SxBxH",
+                           "block_volumes_blastcell_pooled.csv")
+if REUSE_POOLED_CSV and os.path.isfile(_pooled_csv):
+    sj_star_vols = pd.read_csv(_pooled_csv)["volume"].dropna().values.astype(float)
+    sj_star_vols = sj_star_vols[np.isfinite(sj_star_vols) & (sj_star_vols > 0.0)]
+    print(f"Reusing pooled S x B x H block volumes from {_pooled_csv}: "
+          f"{sj_star_vols.size} blocks")
+else:
+    blastcell = generate_blast_cell_realizations(
+        burden_m=B_REAL, spacing_m=S_REAL, bench_height_m=H_REAL,
+        seeds=list(range(3001, 3031)),
+        site_key="VARENNE",
+    )
+    sj_star_vols = blastcell["pooled_volumes_m3"]
+    print(f"Pooled S x B x H block volumes (real, 30 realizations): "
+         f"{sj_star_vols.size} blocks")
+    print(f"Saved: {blastcell['pooled_csv_path']}")
 
 N_LOG_BINS = 10  # configurable; default 10 per the log-bins methodology
 TAIL_LOW_PCT = 1.0   # P1
 TAIL_HIGH_PCT = 99.0  # P99
+WEIGHT_METHOD = "volume"  # professor's request: block-volume weighting
+# Suffix appended to every output filename of this run so that previous
+# (count-weighted, UCS=100) outputs are NOT overwritten.
+OUT_SUFFIX = "_volume_weighted"
 kco_star_result = predict_kco_star(
     design, sj_star_vols, large_domain_vols,
     xmax_block_size_method="equivalent_cube",
@@ -219,8 +239,30 @@ kco_star_result = predict_kco_star(
     tail_high_pct=TAIL_HIGH_PCT,
     percentile_edges=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     representative_method="median",
+    weight_method=WEIGHT_METHOD,
 )
 print("\n" + kco_star_result.audit_table())
+
+# Count-weighted KCO* kept only for the side-by-side weight/X50 table
+# (same classes, same per-class KCO chain; only w_i differs).
+kco_star_result_count = predict_kco_star(
+    design, sj_star_vols, large_domain_vols,
+    xmax_block_size_method="equivalent_cube",
+    xmax_block_percentile=95,
+    class_method="log_bins_p1_p99_tails",
+    n_log_bins=N_LOG_BINS,
+    tail_low_pct=TAIL_LOW_PCT,
+    tail_high_pct=TAIL_HIGH_PCT,
+    representative_method="median",
+    weight_method="count",
+)
+
+unique_groups = kco_star_result.unique_curves()
+print(f"\nDistinct individual KCO* class curves: {len(unique_groups)} "
+      f"among {len(kco_star_result.classes)} classes")
+for g in unique_groups:
+    print(f"  JPS={g['jps']:>2}  X50={g['x50_mm']:.2f} mm  b={g['b']:.3f}  "
+          f"classes={g['class_indices']}  w_{WEIGHT_METHOD}={g['weight']:.4f}")
 
 # ---- Report how the N_LOG_BINS central log bins + 2 tail classes are
 # populated (point 10: must be reported BEFORE the table, using all
@@ -233,7 +275,8 @@ for i, c in enumerate(kco_star_result.classes, start=1):
     tail_tag = f" [{c.is_tail} tail]" if c.is_tail else ""
     print(f"  class {i:>2}{tail_tag}: "
          f"[{c.bin_edge_low_m:.6g}, {c.bin_edge_high_m:.6g}] m "
-         f"-> n={c.n_blocks:>4d}  w={c.weight:.4f}")
+         f"-> n={c.n_blocks:>4d}  w_count={c.weight_count:.4f}  "
+         f"w_volume={c.weight_volume:.6f}")
 if kco_star_result.warnings:
     print("\nWARNINGS (log bins / KCO*):")
     for msg in kco_star_result.warnings:
@@ -247,37 +290,38 @@ wipfrag_size_mm, wipfrag_passing_pct = load_wipfrag_curve(
     WIPFRAG_XLSX, WIPFRAG_SHEET, WIPFRAG_CURVE)
 # Styled to match the project's blockometry cumulative-distribution look
 # (report_whiteboard.py: log-x axis, dashed grid, bold labels).
-fig, ax = plt.subplots(figsize=(8, 4.8))
+fig, ax = plt.subplots(figsize=(9.5, 5.4))
 plot_main_comparison(
     kco_star_result.sj_star_dist, kco_result, kco_star_result,
     measured_sizes_mm=wipfrag_size_mm,
     measured_passing_pct=wipfrag_passing_pct,
     ax=ax,
+    show_class_curves=True,   # every individual class Swebrec curve P_i(x)
+    show_envelope=True,       # fuseau = [min_i P_i(x), max_i P_i(x)]
 )
-# NOTE: classical KCO (X50=215.6mm) and KCO* (X50*=209.6mm) are numerically
-# very close here (same Xmax, similar b), so the thin KCO line is visually
-# hidden under the thicker KCO* line. Restyle KCO (drawn first, so it is
-# ax.lines[1] after in-situ) as a dashed line, on top, so both remain
-# visible without changing any underlying numbers.
+# NOTE: classical KCO and the volume-weighted KCO* are numerically very
+# close (same Xmax, similar b; the JPS=50 classes carry ~99.96 % of the
+# volume weight), so the KCO line would be hidden under the thicker KCO*
+# line. Restyle KCO as a dashed line on top so both remain visible without
+# changing any underlying numbers.
 for line in ax.get_lines():
     if line.get_label() == "Classical KCO (post-blast, predicted)":
         line.set_linestyle("--")
-        line.set_linewidth(3.0)
+        line.set_linewidth(2.2)
         line.set_zorder(10)
-    elif line.get_label() == "KCO* (post-blast, predicted)":
-        line.set_zorder(5)
 ax.set_xlabel("Fragment / block size (mm)", fontsize=11, fontweight="bold")
 ax.set_ylabel("Cumulative Probability (%)", fontsize=11, fontweight="bold")
 ax.set_title("Fragment / Block Size Distribution -- VARENNE\n"
-             "In-situ DFN vs KCO vs KCO* vs WipFrag", fontsize=12,
-             fontweight="bold")
+             "In-situ DFN vs KCO vs KCO* (volume-weighted, with class "
+             "envelope) vs WipFrag", fontsize=12, fontweight="bold")
 ax.set_ylim(0, 100)
 ax.grid(True, which="both", linestyle="--", alpha=0.4)
 ax.legend(loc="upper left", fontsize=9)
 fig.tight_layout()
 out_dir = os.path.join(SCRIPT_DIR, "outputs", "VARENNE", "10_kco_comparison")
 os.makedirs(out_dir, exist_ok=True)
-out_path = os.path.join(out_dir, "VARENNE_kco_vs_kco_star_comparison.png")
+out_path = os.path.join(out_dir,
+                        f"VARENNE_kco_vs_kco_star_comparison{OUT_SUFFIX}.png")
 fig.savefig(out_path, dpi=200, bbox_inches="tight")
 print(f"\nSaved comparison plot: {out_path}")
 
@@ -302,7 +346,8 @@ D_table = D_table.round({"In-situ (mm)": 2,
                         "KCO* (mm)": 2})
 print("\nPercentile sizes D20/D50/D80/D90 (mm):")
 print(D_table.to_string(index=False))
-D_table_csv = os.path.join(out_dir, "VARENNE_D20_D50_D80_D90_table.csv")
+D_table_csv = os.path.join(out_dir,
+                           f"VARENNE_D20_D50_D80_D90_table{OUT_SUFFIX}.csv")
 D_table.to_csv(D_table_csv, index=False)
 print(f"Saved D-table: {D_table_csv}")
 
@@ -312,20 +357,37 @@ print(f"Saved D-table: {D_table_csv}")
 # recompute or invent anything.
 sj_sorted_m = np.sort(kco_star_result.sj_star_dist.sj_star_m)
 n_sj = sj_sorted_m.size
-jps_colors = {20: "#d62728", 50: "#1f77b4", 80: "#2ca02c"}
+jps_colors = {10: "#ff7f0e", 20: "#d62728", 50: "#1f77b4", 80: "#2ca02c"}
 
-# ---- Table: bin, Sj_lower, Sj_upper, n_blocks, weight, Sj_representative,
-# JPS, JF, RMD, BI, A, n, X50, Xmax, b ----
+# ---- Table: bin, Sj_lower, Sj_upper, n_blocks, weight (selected),
+# weight_count, weight_volume, volume_sum_m3, Sj_representative, JPS, JF,
+# RMD, BI, A, n, X50, Xmax, b ----
 table_df = pd.DataFrame(kco_star_result.class_table_rows())
 table_df = table_df.round({
-    "Sj_lower": 6, "Sj_upper": 6, "weight": 4, "Sj_representative": 4,
+    "Sj_lower": 6, "Sj_upper": 6, "weight": 6, "weight_count": 6,
+    "weight_volume": 6, "volume_sum_m3": 6, "Sj_representative": 4,
     "JF": 4, "RMD": 4, "BI": 4, "A": 4, "n": 4, "X50": 2, "Xmax": 2, "b": 3,
 })
 print("\n" + table_df.to_string(index=False))
 
-table_csv_path = os.path.join(out_dir, "VARENNE_sj_star_log_bins_table.csv")
+table_csv_path = os.path.join(
+    out_dir, f"VARENNE_sj_star_log_bins_table{OUT_SUFFIX}.csv")
 table_df.to_csv(table_csv_path, index=False)
 print(f"\nSaved Sj* log-bin table: {table_csv_path}")
+
+# ---- Count- vs volume-weighted KCO* summary (D20/D50/D80/D90) ----
+count_pct = kco_star_result_count.percentiles(levels=_percentiles)
+weight_cmp = pd.DataFrame({
+    "D": [f"D{p}" for p in _percentiles],
+    "KCO* count-weighted (mm)": [count_pct[f"X{p}_star"] for p in _percentiles],
+    "KCO* volume-weighted (mm)": [kco_star_pct[f"X{p}_star"] for p in _percentiles],
+}).round(2)
+print("\nKCO* count- vs volume-weighted percentile sizes (mm):")
+print(weight_cmp.to_string(index=False))
+weight_cmp_csv = os.path.join(
+    out_dir, f"VARENNE_kco_star_weighting_comparison{OUT_SUFFIX}.csv")
+weight_cmp.to_csv(weight_cmp_csv, index=False)
+print(f"Saved weighting comparison: {weight_cmp_csv}")
 
 # ---- Percentage-frequency histogram helper ----
 # Y-axis = percentage of blocks in each bin: pct_bin = 100 * N_bin / N_total.
@@ -456,11 +518,68 @@ ax3.legend(h3 + proxies3, l3 + [p.get_label() for p in proxies3],
           loc="upper left", fontsize=7.5)
 fig3.tight_layout()
 
-sj_hist_path = os.path.join(out_dir, "VARENNE_sj_star_histogram_JPS.png")
+sj_hist_path = os.path.join(
+    out_dir, f"VARENNE_sj_star_histogram_JPS{OUT_SUFFIX}.png")
 fig3.savefig(sj_hist_path, dpi=200, bbox_inches="tight")
 print(f"\nSaved Sj* non-cumulative (histogram/density) plot: {sj_hist_path}")
 
+# ---- Fig 3b (comparison only): VOLUME-based version of Fig 3 ----
+# Y-axis = percentage of TOTAL BLOCK VOLUME in each bin:
+#   pct_vol_bin = 100 * sum_{j in bin} V_j / sum_j V_j.
+# Identical Sj* data, 60 geometric histogram bins, P1/P99, 10 central log
+# classes, 2 tails, class boundaries and representative Sj*_i as Fig 3;
+# only the bar height statistic changes (volume share instead of block
+# count share). Purely descriptive; it is NOT used by KCO/KCO*.
+_sj_all = kco_star_result.sj_star_dist.sj_star_m
+_vol_all = kco_star_result.sj_star_dist.block_volume_m3
+vol_per_bin, _ = np.histogram(_sj_all, bins=bin_edges, weights=_vol_all)
+assert abs(vol_per_bin.sum() - _vol_all.sum()) < 1e-6 * _vol_all.sum(), (
+    "no block volume may be dropped by binning"
+)
+pct_vol_per_bin = 100.0 * vol_per_bin / _vol_all.sum()
+assert abs(pct_vol_per_bin.sum() - 100.0) < 1e-9, (
+    "volume percentages must sum to 100%"
+)
+kde_vol = gaussian_kde(np.log(_sj_all), weights=_vol_all)
+pct_kde_vol = kde_vol(np.log(x_kde)) * dlnx_bin * 100.0
+
+fig3b, ax3b = plt.subplots(figsize=(9, 5.5))
+ax3b.bar(edges[:-1], pct_vol_per_bin, width=np.diff(edges), align="edge",
+        color="#888888", edgecolor="white", alpha=0.8,
+        label=f"Sj* volume share (% of total block volume, "
+              f"sum V={_vol_all.sum():.1f} m3, n={n_sj})")
+ax3b.plot(x_kde, pct_kde_vol, color="black", lw=1.5,
+         label="Sj* volume share (volume-weighted KDE, scaled to % per bin)")
+for c in kco_star_result.classes:
+    if c.is_tail:
+        continue
+    span_lo = c.bin_edge_low_m if c.bin_edge_low_m is not None else c.sj_min_m
+    span_hi = c.bin_edge_high_m if c.bin_edge_high_m is not None else c.sj_max_m
+    ax3b.axvspan(span_lo, span_hi, alpha=0.12,
+                 color=jps_colors.get(c.jps, "gray"))
+ymax3b = ax3b.get_ylim()[1]
+proxies3b = _draw_class_lines(ax3b, kco_star_result.classes, ymax3b,
+                              "JPS-colored", "", jps_labels=True,
+                              mark_p1_p99=True)
+ax3b.set_xscale("log")
+ax3b.set_xlabel("Sj* = V^(1/3) (m)", fontsize=11, fontweight="bold")
+ax3b.set_ylabel("Percentage of total block volume (%)", fontsize=11,
+               fontweight="bold")
+ax3b.set_title(
+    f"Sj* Non-Cumulative Distribution with {_method_desc} -- VARENNE\n"
+    "(real pooled S x B x H DFN, 30 realizations, VOLUME share per bin, "
+    f"n={n_sj} blocks) -- comparison only", fontsize=11, fontweight="bold")
+ax3b.grid(True, which="both", linestyle="--", alpha=0.3)
+h3b, l3b = ax3b.get_legend_handles_labels()
+ax3b.legend(h3b + proxies3b, l3b + [p.get_label() for p in proxies3b],
+           loc="upper left", fontsize=7.5)
+fig3b.tight_layout()
+sj_hist_vol_path = os.path.join(
+    out_dir, f"VARENNE_sj_star_histogram_JPS_volume_share{OUT_SUFFIX}.png")
+fig3b.savefig(sj_hist_vol_path, dpi=200, bbox_inches="tight")
+print(f"Saved Sj* VOLUME-share histogram (comparison only): {sj_hist_vol_path}")
+
 print("\n" + "=" * 70)
-print("REMINDER: rock/explosive properties above are ESTIMATES, not")
-print("confirmed Varenne measurements. Re-run once confirmed.")
+print("REMINDER: s_anfo_pct, drill_accuracy_sd_m and jpa_case are ESTIMATES,")
+print("not confirmed Varenne measurements. Re-run once confirmed.")
 print("=" * 70)

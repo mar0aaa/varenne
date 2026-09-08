@@ -710,6 +710,9 @@ class KCOStarClassResult:
     bin_edge_low_m: Optional[float] = None
     bin_edge_high_m: Optional[float] = None
     is_tail: Optional[str] = None
+    weight_count: Optional[float] = None
+    weight_volume: Optional[float] = None
+    volume_sum_m3: Optional[float] = None
 
     def passing(self, x_mm) -> np.ndarray:
         """Class-specific Swebrec percentage passing P_i(x) (published KCO)."""
@@ -775,9 +778,42 @@ class KCOStarResult:
     n_log_bins: Optional[int] = None
     tail_low_pct: Optional[float] = None
     tail_high_pct: Optional[float] = None
+    weight_method: str = "count"
 
     def weights(self) -> np.ndarray:
         return np.array([c.weight for c in self.classes], dtype=float)
+
+    def envelope(self, x_mm) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Return (P_min(x), P_max(x)) over the individual class Swebrec
+        curves P_i(x): the KCO* class envelope ("fuseau").
+
+        This is the range of the individual class curves, NOT a
+        confidence interval around the weighted mixture.
+        """
+        return kco_star_class_envelope(x_mm, self.classes)
+
+    def unique_curves(self, tol: float = 1e-9) -> list:
+        """
+        Group classes that produce numerically identical Swebrec curves
+        (same X50, Xmax and b). Returns a list of dicts with keys
+        "x50_mm", "b", "jps", "class_indices" (1-based) and
+        "weight" (summed weight of the group).
+        """
+        groups: list = []
+        for i, c in enumerate(self.classes, start=1):
+            for g in groups:
+                if (abs(g["x50_mm"] - c.x50_mm) < tol
+                        and abs(g["b"] - c.b) < tol
+                        and abs(g["xmax_mm"] - c.xmax_mm) < tol):
+                    g["class_indices"].append(i)
+                    g["weight"] += c.weight
+                    break
+            else:
+                groups.append({"x50_mm": c.x50_mm, "b": c.b,
+                               "xmax_mm": c.xmax_mm, "jps": c.jps,
+                               "class_indices": [i], "weight": c.weight})
+        return groups
 
     def passing(self, x_mm) -> np.ndarray:
         """
@@ -824,6 +860,7 @@ class KCOStarResult:
             )
         lines.append("")
         lines.append(f"sum(weights) = {sum(c.weight for c in self.classes):.6f}")
+        lines.append(f"weight_method = {self.weight_method}")
         lines.append(f"n_retained = {self.n_retained}, "
                      f"n_rejected = {self.n_rejected}")
         lines.append(f"class_method = {self.class_method}"
@@ -874,6 +911,9 @@ class KCOStarResult:
                 "Sj_upper": sj_upper,
                 "n_blocks": c.n_blocks,
                 "weight": c.weight,
+                "weight_count": c.weight_count,
+                "weight_volume": c.weight_volume,
+                "volume_sum_m3": c.volume_sum_m3,
                 "Sj_representative": c.sj_representative_m,
                 "JPS": c.jps,
                 "JF": c.jf,
@@ -927,6 +967,31 @@ def kco_star_passing(x, classes: list) -> np.ndarray:
     for c in classes:
         out = out + c.weight * swebrec_passing(x, c.x50_mm, c.xmax_mm, c.b)
     return out
+
+
+def kco_star_class_envelope(x, classes: list) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Return the KCO* class envelope ("fuseau"):
+
+        P_min(x) = min_i P_i(x),   P_max(x) = max_i P_i(x)
+
+    over the individual class Swebrec curves P_i(x). This is the range
+    spanned by the individual KCO class curves, NOT a confidence
+    interval around the weighted mixture.
+
+    Args:
+        x: Fragment size(s) (mm).
+        classes: List of :class:`KCOStarClassResult`.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: (P_min, P_max), percent passing.
+    """
+    if not classes:
+        raise ValueError("no classes supplied")
+    x = np.asarray(x, dtype=float)
+    stack = np.vstack([swebrec_passing(x, c.x50_mm, c.xmax_mm, c.b)
+                       for c in classes])
+    return stack.min(axis=0), stack.max(axis=0)
 
 
 def kco_star_size_at_passing(passing_pct, classes: list,
@@ -1038,6 +1103,7 @@ def predict_kco_star(
         n_log_bins: int = 10,
         tail_low_pct: float = 1.0,
         tail_high_pct: float = 99.0,
+        weight_method: str = "count",
 ) -> KCOStarResult:
     """
     Run the full KCO* chain: DFN block volumes -> Sj* distribution ->
@@ -1098,6 +1164,12 @@ def predict_kco_star(
         tail_low_pct, tail_high_pct: Percentile edges (0-100) defining
             the tail cutoffs, only used when
             ``class_method=="log_bins_p1_p99_tails"``. Default 1/99.
+        weight_method: "count" (default) -> w_i = N_i / N_tot (block-
+            count weighting); "volume" -> w_i = sum_{j in C_i} V_j /
+            sum_j V_j (block-volume weighting, V_j = Sj*_j^3). Both
+            weights are stored on every class result (``weight_count``,
+            ``weight_volume``); ``weight`` is the one selected here and
+            used in the mixture P_KCO*(x) = sum_i w_i P_i(x).
 
     Returns:
         KCOStarResult: The full, traceable KCO* prediction.
@@ -1180,6 +1252,25 @@ def predict_kco_star(
                          "percentile_edges/n_log_bins against the "
                          "population size")
 
+    # ---- 1b. class weights: block-count (N_i/N_tot) and block-volume
+    # (sum V_j in class / sum V_j total, with V_j = Sj*_j^3) ----
+    if weight_method not in ("count", "volume"):
+        raise ValueError("weight_method must be 'count' or 'volume'")
+    class_vol_sums = np.array(
+        [float(np.sum(np.asarray(c.sj_values_m, dtype=float) ** 3))
+         for c in classes_in], dtype=float)
+    total_vol = float(np.sum(sj_star_dist.block_volume_m3))
+    if not np.isclose(class_vol_sums.sum(), total_vol, rtol=1e-9, atol=0.0):
+        raise ValueError(
+            f"internal error: class volume sums {class_vol_sums.sum():.9g} "
+            f"!= total retained volume {total_vol:.9g}")
+    weights_count = np.array([c.weight for c in classes_in], dtype=float)
+    weights_volume = class_vol_sums / total_vol
+    if abs(weights_volume.sum() - 1.0) > 1e-9:
+        raise ValueError(
+            f"internal error: volume weights sum to {weights_volume.sum():.9f}")
+    weights_used = weights_volume if weight_method == "volume" else weights_count
+
     # ---- 2. Xmax: separate issue, computed once, shared by all classes ----
     block_size_m, xmax_info = characteristic_block_size_from_distribution(
         xmax_block_volumes_m3,
@@ -1193,7 +1284,7 @@ def predict_kco_star(
 
     # ---- 3. propagate each Sj* class through the published KCO chain ----
     class_results: list[KCOStarClassResult] = []
-    for cin in classes_in:
+    for k, cin in enumerate(classes_in):
         jps_i = jps_from_joint_spacing(cin.sj_representative_m,
                                        design.burden_m, design.spacing_m)
         jf_i = joint_factor(jps_i, jpa, jcf)
@@ -1251,7 +1342,7 @@ def predict_kco_star(
         class_results.append(KCOStarClassResult(
             percentile_low=cin.percentile_low,
             percentile_high=cin.percentile_high,
-            weight=cin.weight,
+            weight=float(weights_used[k]),
             n_blocks=cin.n_blocks,
             volume_min_m3=cin.volume_min_m3,
             volume_max_m3=cin.volume_max_m3,
@@ -1265,6 +1356,9 @@ def predict_kco_star(
             bin_edge_low_m=cin.bin_edge_low_m,
             bin_edge_high_m=cin.bin_edge_high_m,
             is_tail=cin.is_tail,
+            weight_count=float(weights_count[k]),
+            weight_volume=float(weights_volume[k]),
+            volume_sum_m3=float(class_vol_sums[k]),
         ))
 
     total_w = sum(c.weight for c in class_results)
@@ -1292,6 +1386,7 @@ def predict_kco_star(
                      else None),
         tail_high_pct=(tail_high_pct if class_method == "log_bins_p1_p99_tails"
                       else None),
+        weight_method=weight_method,
     )
 
 
@@ -1460,12 +1555,22 @@ def plot_main_comparison(sj_star_dist: SjStarDistribution,
                          kco_star_result: Optional[KCOStarResult],
                          measured_sizes_mm=None,
                          measured_passing_pct=None,
-                         ax=None, n_points: int = 500):
+                         ax=None, n_points: int = 500,
+                         show_class_curves: bool = False,
+                         show_envelope: bool = False):
     """
     Plot 4: in-situ DFN (pre-blast) vs classical KCO vs KCO* vs WipFrag
     (post-blast), all on the same fragment-size axis. The in-situ curve
     represents pre-blast block structure; KCO/KCO*/WipFrag represent
     predicted or measured post-blast fragmentation.
+
+    Optional:
+        show_class_curves: draw every individual class Swebrec curve
+            P_i(x) as a thin, semi-transparent line.
+        show_envelope: shade the KCO* class envelope ("fuseau") between
+            P_min(x) = min_i P_i(x) and P_max(x) = max_i P_i(x). This is
+            the range of the individual class curves, not a confidence
+            interval around the weighted mixture.
     """
     import matplotlib.pyplot as plt
     if ax is None:
@@ -1473,14 +1578,76 @@ def plot_main_comparison(sj_star_dist: SjStarDistribution,
     x_in_situ, p_in_situ = in_situ_passing_from_sj_star(sj_star_dist)
     ax.plot(x_in_situ, p_in_situ, color="black", lw=1.5,
            label="In-situ DFN (pre-blast, Sj*)")
+    if kco_star_result is not None and (show_class_curves or show_envelope):
+        x_grid = np.geomspace(1.0, kco_star_result.xmax_mm, n_points)
+        if show_envelope:
+            p_min, p_max = kco_star_result.envelope(x_grid)
+            ax.fill_between(x_grid, p_min, p_max, color="tab:blue",
+                            alpha=0.18, lw=0, zorder=1,
+                            label="KCO* class envelope (min-max of P_i)")
+        if show_class_curves:
+            groups = kco_star_result.unique_curves()
+            n_cls = len(kco_star_result.classes)
+            cmap = plt.get_cmap("viridis")
+            markers = ["o", "s", "^", "v", "D", "P", "X", "*", "<", ">",
+                       "h", "p"]
+            linestyles = ["-", "--", "-.", ":"]
+            # Every class is plotted individually with its own colour,
+            # line style and marker. Classes with identical (X50, Xmax, b)
+            # fall on exactly the same curve; their markers are staggered
+            # along x (markevery offset = rank in the group) so that each
+            # coincident class remains individually identifiable without
+            # altering any numerical value.
+            group_of = {}
+            for g in groups:
+                for rank, k in enumerate(g["class_indices"]):
+                    group_of[k] = (rank, len(g["class_indices"]))
+            class_handles, class_labels = [], []
+            for i, c in enumerate(kco_star_result.classes, start=1):
+                rank, size = group_of[i]
+                step = max(n_points // 10, 1)
+                offset = int(round(rank * step / max(size, 1)))
+                tail = (f" [{c.is_tail} tail]" if c.is_tail else "")
+                label = (f"C{i:>2}{tail}: Sj*={c.sj_representative_m:.3f} m, "
+                         f"JPS={c.jps}, X50={c.x50_mm:.0f} mm, "
+                         f"w={c.weight:.4f}")
+                ln, = ax.plot(x_grid, c.passing(x_grid),
+                              color=cmap((i - 1) / max(n_cls - 1, 1)),
+                              lw=0.9, alpha=0.9, zorder=7,
+                              linestyle=linestyles[(i - 1) % len(linestyles)],
+                              marker=markers[(i - 1) % len(markers)],
+                              markersize=4.5, markevery=(offset, step),
+                              markerfacecolor="white", markeredgewidth=0.9,
+                              label="_" + label)  # hidden from main legend
+                class_handles.append(ln)
+                class_labels.append(label)
+            overlap_lines = []
+            for g in groups:
+                idx = g["class_indices"]
+                if len(idx) > 1:
+                    overlap_lines.append(
+                        "C" + ", C".join(str(k) for k in idx)
+                        + f" coincide exactly (JPS={g['jps']})")
+            title = (f"Individual KCO* class curves P_i(x): {n_cls} classes "
+                     f"computed, {len(groups)} distinct"
+                     + ("\n" + "\n".join(overlap_lines) if overlap_lines
+                        else ""))
+            # Figure-level legend (not ax.add_artist) so that it is kept
+            # by savefig(bbox_inches="tight") when placed outside the axes.
+            ax.figure.legend(handles=class_handles, labels=class_labels,
+                             loc="center left", bbox_to_anchor=(1.01, 0.5),
+                             bbox_transform=ax.transAxes, fontsize=7,
+                             title=title, title_fontsize=7.5, frameon=True)
     if kco_result is not None:
         x_grid = np.geomspace(1.0, kco_result.xmax_mm, n_points)
         ax.plot(x_grid, kco_result.passing(x_grid), color="green", lw=1.5,
                label="Classical KCO (post-blast, predicted)")
     if kco_star_result is not None:
         x_grid = np.geomspace(1.0, kco_star_result.xmax_mm, n_points)
-        ax.plot(x_grid, kco_star_result.passing(x_grid), color="blue", lw=2,
-               label="KCO* (post-blast, predicted)")
+        wm = ("volume-weighted" if kco_star_result.weight_method == "volume"
+              else "count-weighted")
+        ax.plot(x_grid, kco_star_result.passing(x_grid), color="blue", lw=2.5,
+               zorder=6, label=f"KCO* ({wm}, post-blast, predicted)")
     if measured_sizes_mm is not None and measured_passing_pct is not None:
         ax.plot(measured_sizes_mm, measured_passing_pct, "o--", color="red",
                lw=1, label="WipFrag (post-blast, measured)")
@@ -1717,6 +1884,35 @@ def self_test_kco_star(verbose: bool = True) -> bool:
     check("log_bins_p1_p99_tails: KCO* passing in [0,100]",
          bool(np.all(result_tails.passing(
              np.geomspace(1.0, result_tails.xmax_mm, 300)) >= -1e-9)))
+
+    # 24-28. volume weighting: sums to 1, equals sum(V)/total, count
+    # weights preserved, class chain (X50_i) unchanged, envelope brackets
+    # the mixture.
+    result_vol = predict_kco_star(
+        design, sj_volumes, xmax_volumes,
+        xmax_block_size_method="equivalent_cube",
+        xmax_block_percentile=95,
+        class_method="log_bins_p1_p99_tails",
+        n_log_bins=10,
+        representative_method="median",
+        weight_method="volume",
+    )
+    check("volume weights sum to 1",
+         abs(sum(c.weight for c in result_vol.classes) - 1.0) < 1e-9)
+    v_tot = float(np.sum(result_vol.sj_star_dist.block_volume_m3))
+    check("volume weight_i == sum(V in class)/sum(V)",
+         all(abs(c.weight - c.volume_sum_m3 / v_tot) < 1e-12
+             for c in result_vol.classes))
+    check("count weights still stored and sum to 1",
+         abs(sum(c.weight_count for c in result_vol.classes) - 1.0) < 1e-9)
+    check("per-class X50 unchanged by weighting method",
+         all(abs(a.x50_mm - b.x50_mm) < 1e-9
+             for a, b in zip(result_tails.classes, result_vol.classes)))
+    xg = np.geomspace(1.0, result_vol.xmax_mm, 300)
+    p_lo, p_hi = result_vol.envelope(xg)
+    p_mix = result_vol.passing(xg)
+    check("envelope P_min <= P_KCO* <= P_max",
+         bool(np.all(p_lo - 1e-9 <= p_mix) and np.all(p_mix <= p_hi + 1e-9)))
 
     if verbose:
         print("\nAll KCO* checks passed." if ok else "\nSOME KCO* CHECKS FAILED.")
