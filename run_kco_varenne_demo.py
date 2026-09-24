@@ -361,6 +361,41 @@ print(f"V_fines,ann = 4*pi*(r_c^2-r_0^2)*H = {V_FINES_ANN:.6f} m3")
 print(f"P_x,fines,ann = V_fines,ann/V_block = {P_FINES_ANN_PCT:.4f}%")
 wipfrag_ann_size_mm, wipfrag_ann_passing_pct = _wipfrag_adjusted(
     P_FINES_ANN_PCT)
+
+# ---- Esen et al. (2003) CZI crushed-zone method (parallel estimate) ----
+# Independent alternative to Prof. Aubertin's r_c above; the rest of the
+# correction chain (4-cylinder V_f, P_f, WipFrag adjustment) is identical,
+# so the ONLY difference between the two adjusted curves is the r_c method.
+#   K   = E_d / (1 + nu_d)
+#   CZI = P_b^3 / (K * sigma_c^2)
+#   r_c = 0.812 * r_0 * CZI^0.219
+# ======================================================================
+# !!! EDITABLE INPUT -- ASSUMPTION, NOT YET CONFIRMED by Prof. Aubertin !!
+# The input Excel contains E = 60 GPa (static Young's modulus); whether it
+# may be used as the DYNAMIC modulus E_d is unconfirmed. Edit E_D_GPA here
+# only -- the original input E is not touched.
+# ======================================================================
+E_D_GPA = 60.0          # GPa -- PROVISIONAL assumption (see note above)
+NU_D = 0.25             # dynamic Poisson ratio (confirmed by Prof. Aubertin)
+P_B_MPA = P_CRUSH_MPA   # borehole pressure rho_e D^2 / 8 = 3037.5 MPa
+K_ESEN_MPA = E_D_GPA * 1e3 / (1.0 + NU_D)          # MPa
+CZI = P_B_MPA**3 / (K_ESEN_MPA * _C0**2)           # dimensionless
+R_C_ESEN = 0.812 * _R0 * CZI**0.219                # m
+V_FINES_ESEN = 4.0 * np.pi * R_C_ESEN**2 * _H      # m3
+P_FINES_ESEN_PCT = 100.0 * V_FINES_ESEN / V_BLOCK  # %
+print("\n==== Esen et al. (2003) CZI crushed-zone estimate ====")
+print(f"E_d (ASSUMPTION, unconfirmed)   = {E_D_GPA:.1f} GPa")
+print(f"nu_d                            = {NU_D:.2f}")
+print(f"P_b = rho_e D^2 / 8             = {P_B_MPA:.4f} MPa")
+print(f"K = E_d/(1+nu_d)                = {K_ESEN_MPA:.1f} MPa")
+print(f"CZI = P_b^3/(K sigma_c^2)       = {CZI:.4f}")
+print(f"r_c = 0.812 r_0 CZI^0.219       = {R_C_ESEN:.6f} m "
+      f"(r_c/r_0 = {R_C_ESEN / _R0:.4f})")
+print(f"V_fines = 4*pi*r_c^2*H          = {V_FINES_ESEN:.6f} m3")
+print(f"P_x,fines = V_fines/V_block     = {P_FINES_ESEN_PCT:.4f}%")
+wipfrag_esen_size_mm, wipfrag_esen_passing_pct = _wipfrag_adjusted(
+    P_FINES_ESEN_PCT)
+
 # Styled to match the project's blockometry cumulative-distribution look
 # (report_whiteboard.py: log-x axis, dashed grid, bold labels).
 fig, ax = plt.subplots(figsize=(9.5, 5.4))
@@ -458,6 +493,67 @@ out_path2 = os.path.join(
 fig2.savefig(out_path2, dpi=200, bbox_inches="tight")
 print(f"Saved final comparison plot: {out_path2}")
 
+# ---- Crushed-zone method comparison figure: Aubertin vs Esen CZI ----
+# Same curves as the final figure PLUS the Esen-adjusted WipFrag curve, so
+# the effect of the r_c model can be compared directly.
+fig3, ax3 = plt.subplots(figsize=(9.5, 5.4))
+plot_main_comparison(
+    kco_star_result.sj_star_dist, kco_result, kco_star_result,
+    measured_sizes_mm=wipfrag_size_mm,
+    measured_passing_pct=wipfrag_passing_pct,
+    ax=ax3,
+    show_class_curves=True,
+    show_envelope=True,
+)
+for line in ax3.get_lines():
+    _lbl = line.get_label()
+    if _lbl == "Classical KCO (post-blast, predicted)":
+        line.set_linestyle("--")
+        line.set_linewidth(2.2)
+        line.set_zorder(10)
+        line.set_label("Classical KCO")
+    elif _lbl == "WipFrag (post-blast, measured)":
+        line.set_label("WipFrag original")
+    elif _lbl.startswith("In-situ DFN"):
+        line.set_label("In-situ DFN")
+    elif _lbl.startswith("KCO* (volume-weighted"):
+        line.set_label("KCO*")
+ax3.plot(wipfrag_adj_size_mm, wipfrag_adj_passing_pct, "s--",
+         color="orangered", lw=1,
+         label=("WipFrag adjusted \u2013 Aubertin "
+                rf"($P_{{\mathrm{{fines}}}}={P_FINES_PCT:.2f}\%$)"),
+         zorder=8)
+ax3.plot(wipfrag_esen_size_mm, wipfrag_esen_passing_pct, "^--",
+         color="purple", lw=1,
+         label=("WipFrag adjusted \u2013 Esen CZI "
+                rf"($P_{{\mathrm{{fines}}}}={P_FINES_ESEN_PCT:.2f}\%$)"),
+         zorder=8)
+ax3.text(0.985, 0.04,
+         "Crushed-zone correction: "
+         r"$V_f=4\pi r_c^2 H$" "\n"
+         rf"Aubertin: $r_c={R_C:.3f}$ m, $P_f={P_FINES_PCT:.2f}\%$" "\n"
+         rf"Esen CZI: $r_c={R_C_ESEN:.3f}$ m, $P_f={P_FINES_ESEN_PCT:.2f}\%$"
+         "\n"
+         rf"($E_d={E_D_GPA:.0f}$ GPa assumed)",
+         transform=ax3.transAxes, ha="right", va="bottom", fontsize=8,
+         bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
+                   edgecolor="0.6", alpha=0.9), zorder=20)
+ax3.set_xlabel("Fragment / block size (mm)", fontsize=11, fontweight="bold")
+ax3.set_ylabel("Cumulative Probability (%)", fontsize=11, fontweight="bold")
+ax3.set_title("Fragment / Block Size Distribution -- VARENNE\n"
+              "In-situ DFN vs KCO vs KCO* vs WipFrag original / adjusted "
+              "(Aubertin vs Esen CZI crushed-zone)",
+              fontsize=12, fontweight="bold")
+ax3.set_ylim(0, 100)
+ax3.grid(True, which="both", linestyle="--", alpha=0.4)
+ax3.legend(loc="upper left", fontsize=9)
+fig3.tight_layout()
+out_path3 = os.path.join(
+    out_dir,
+    f"VARENNE_kco_vs_kco_star_comparison{OUT_SUFFIX}_czmethods.png")
+fig3.savefig(out_path3, dpi=200, bbox_inches="tight")
+print(f"Saved crushed-zone method comparison plot: {out_path3}")
+
 print("\nKCO*  percentiles:", kco_star_result.percentiles())
 
 # ---- Percentile-size comparison table (D20, D50, D80, D90) ----
@@ -486,6 +582,7 @@ def _wipfrag_adjusted_d(p_fines_pct):
 
 _wip_d_adj = _wipfrag_adjusted_d(P_FINES_PCT)
 _wip_d_ann = _wipfrag_adjusted_d(P_FINES_ANN_PCT)
+_wip_d_esen = _wipfrag_adjusted_d(P_FINES_ESEN_PCT)
 _wipfrag_D_table = pd.DataFrame({
     "D": [f"D{p}" for p in _percentiles],
     "WipFrag original (mm)": [_wip_d[p] for p in _percentiles],
@@ -537,6 +634,38 @@ D_table_csv = os.path.join(out_dir,
                            f"VARENNE_D20_D50_D80_D90_table{OUT_SUFFIX}.csv")
 D_table.to_csv(D_table_csv, index=False)
 print(f"Saved D-table: {D_table_csv}")
+
+# ---- Crushed-zone method comparison table (Aubertin vs Esen CZI) ----
+# Same 4-cylinder V_f / P_f / adjustment chain for both rows; the ONLY
+# difference is the r_c model.
+_cz_table = pd.DataFrame({
+    "Method": ["Aubertin (current)", "Esen et al. (2003) CZI"],
+    "P_b (MPa)": [P_CRUSH_MPA, P_B_MPA],
+    "UCS (MPa)": [_C0, _C0],
+    "E_d (GPa)": ["n/a", f"{E_D_GPA:.0f} (assumed)"],
+    "nu_d": ["n/a", f"{NU_D:.2f}"],
+    "r_c (m)": [R_C, R_C_ESEN],
+    "r_c/r_0": [R_C / _R0, R_C_ESEN / _R0],
+    "V_f (m3)": [V_FINES, V_FINES_ESEN],
+    "P_f (%)": [P_FINES_PCT, P_FINES_ESEN_PCT],
+    "adj D20 (mm)": [_wip_d_adj[20], _wip_d_esen[20]],
+    "adj D50 (mm)": [_wip_d_adj[50], _wip_d_esen[50]],
+    "adj D80 (mm)": [_wip_d_adj[80], _wip_d_esen[80]],
+    "adj D90 (mm)": [_wip_d_adj[90], _wip_d_esen[90]],
+})
+print("\nCrushed-zone method comparison (Aubertin vs Esen CZI):")
+print(_cz_table.to_string(index=False))
+_cz_csv = os.path.join(
+    out_dir, f"VARENNE_crushed_zone_methods_comparison{OUT_SUFFIX}.csv")
+_cz_table.to_csv(_cz_csv, index=False)
+print(f"Saved crushed-zone method table: {_cz_csv}")
+
+print("\n==== WipFrag curve shift: Esen CZI vs original vs Aubertin ====")
+for p in _percentiles:
+    print(f"D{p}: original {_wip_d[p]:.2f} -> Esen {_wip_d_esen[p]:.2f} mm "
+          f"(shift {_wip_d_esen[p] - _wip_d[p]:+.2f} mm); "
+          f"Aubertin {_wip_d_adj[p]:.2f} mm "
+          f"(Esen vs Aubertin {_wip_d_esen[p] - _wip_d_adj[p]:+.2f} mm)")
 
 # ---- Sj* population (real pooled S x B x H, 2303 blocks) ----
 # Reuses kco_star_result.sj_star_dist and kco_star_result.classes
@@ -638,11 +767,12 @@ for g in unique_groups:
                f"| {g['x50_mm']:.4f} | {g['xmax_mm']:.2f} | {g['b']:.6f} | {g['weight']:.7f} |")
 _md.append("\n## Percentile sizes (mm)\n")
 _md.append("| D | In-situ DFN | Classical KCO | KCO* volume-weighted "
-           "| KCO* count-weighted (reference) | WipFrag original | WipFrag ajusté - fines |\n|---|---|---|---|---|---|---|")
+           "| KCO* count-weighted (reference) | WipFrag original | WipFrag ajusté - fines "
+           "| WipFrag adjusted - Esen CZI |\n|---|---|---|---|---|---|---|---|")
 for p, ins in zip(_percentiles, in_situ_mm):
     _md.append(f"| D{p} | {float(ins):.2f} | {kco_pct[f'X{p}']:.2f} "
                f"| {kco_star_pct[f'X{p}_star']:.2f} | {count_pct[f'X{p}_star']:.2f} "
-               f"| {_wip_d[p]:.2f} | {_wip_d_adj[p]:.2f} |")
+               f"| {_wip_d[p]:.2f} | {_wip_d_adj[p]:.2f} | {_wip_d_esen[p]:.2f} |")
 _md.append("\nEnvelope: P_min(x) = min_i P_i(x), P_max(x) = max_i P_i(x) over the 12 "
            "class curves (min-max class envelope, not a confidence interval).\n")
 _md.append("## WipFrag ajusté - fines (crushed-zone missing fines)\n")
@@ -673,6 +803,36 @@ _md.append("Final presentation figure: "
            "(In-situ DFN, Classical KCO, KCO*, WipFrag original, WipFrag "
            "adjusted - full cylinders). Annulus comparison archived in "
            "`archive_annulus_comparison/`.\n")
+_md.append("## WipFrag adjusted - Esen et al. (2003) CZI crushed-zone\n")
+_md.append(
+    "Parallel crushed-zone estimate: same 4-cylinder V_f / P_f / WipFrag "
+    "adjustment chain as Prof. Aubertin's method; the ONLY difference is "
+    "the r_c model. "
+    f"**E_d = {E_D_GPA:.0f} GPa is a PROVISIONAL ASSUMPTION** (input Excel "
+    "E = 60 GPa, static; not yet confirmed as the dynamic modulus by "
+    "Prof. Aubertin).\n")
+_md.append("| Quantity | Value |\n|---|---|")
+for k, v in (("E_d (GPa) -- ASSUMPTION", f"{E_D_GPA:.1f}"),
+             ("nu_d", f"{NU_D:.2f}"),
+             ("P_b = rho_e D^2 / 8 (MPa)", f"{P_B_MPA:.2f}"),
+             ("K = E_d/(1+nu_d) (MPa)", f"{K_ESEN_MPA:.1f}"),
+             ("sigma_c = UCS (MPa)", f"{_C0:.0f}"),
+             ("CZI = P_b^3/(K sigma_c^2)", f"{CZI:.4f}"),
+             ("r_c = 0.812 r_0 CZI^0.219 (m)", f"{R_C_ESEN:.5f}"),
+             ("r_c/r_0", f"{R_C_ESEN / _R0:.4f}"),
+             ("V_fines = 4 pi r_c^2 H (m3)", f"{V_FINES_ESEN:.4f}"),
+             ("P_fines = V_fines/V_block (%)", f"{P_FINES_ESEN_PCT:.4f}")):
+    _md.append(f"| {k} | {v} |")
+_md.append("\n### Crushed-zone method comparison\n")
+_md.append("| Method | P_b (MPa) | UCS (MPa) | E_d (GPa) | nu_d | r_c (m) "
+           "| r_c/r_0 | V_f (m3) | P_f (%) | adj D20 | adj D50 | adj D80 "
+           "| adj D90 |\n|---|---|---|---|---|---|---|---|---|---|---|---|")
+for _, r in _cz_table.iterrows():
+    _md.append("| " + " | ".join(str(v) for v in r) + " |")
+_md.append(
+    "\nMethod-comparison figure: "
+    f"`VARENNE_kco_vs_kco_star_comparison{OUT_SUFFIX}_czmethods.png` "
+    "(adds WipFrag adjusted - Esen CZI to the final-figure curves).\n")
 summary_md_path = os.path.join(
     out_dir, f"VARENNE_kco_results_summary{OUT_SUFFIX}.md")
 with open(summary_md_path, "w", encoding="utf-8") as fh:
@@ -917,7 +1077,8 @@ _VIRIDIS12 = ["#440154", "#482173", "#433E85", "#38598C", "#2D708E",
 
 
 def _logx_scatter(title, x_name, y_name, y_max=None,
-                  x_min=None, x_max=None, hide_x_labels=False):
+                  x_min=None, x_max=None, hide_x_labels=False,
+                  y_at_xmin=False):
     ch = wb.add_chart({"type": "scatter", "subtype": "straight"})
     xax = {"name": x_name, "log_base": 10, "num_font": {"size": 9},
            "major_gridlines": {"visible": True,
@@ -930,6 +1091,10 @@ def _logx_scatter(title, x_name, y_name, y_max=None,
         xax["max"] = x_max
     if hide_x_labels:
         xax["label_position"] = "none"
+    if y_at_xmin:
+        # pin the y-axis to the left edge: vertical axis crosses at x min
+        # (xlsxwriter writes this into the y-axis element's c:crosses)
+        xax["crossing"] = "min"
     ch.set_x_axis(xax)
     yax = {"name": y_name, "num_font": {"size": 9},
            "major_gridlines": {"visible": True,
@@ -1178,7 +1343,7 @@ ws.set_column(30, _hc - 1, None, None, {"hidden": True})
 ch = _logx_scatter(
     f"Sj* Non-Cumulative Distribution -- VARENNE (n={n_sj} blocks)",
     "Sj* = V^(1/3) (m)", "Percentage of blocks (%)", y_max=_ymax_hist,
-    x_min=1e-4, x_max=10.0, hide_x_labels=True)
+    x_min=1e-4, x_max=10.0, hide_x_labels=True, y_at_xmin=True)
 ch.show_blanks_as("gap")
 ch.show_hidden_data()
 _del_series = []
@@ -1297,6 +1462,10 @@ p_wip_o[(x_grid < wipfrag_size_mm.min())
 p_wip_a = np.interp(x_grid, wipfrag_adj_size_mm, wipfrag_adj_passing_pct)
 p_wip_a[(x_grid < wipfrag_adj_size_mm.min())
         | (x_grid > wipfrag_adj_size_mm.max())] = np.nan
+p_wip_e = np.interp(x_grid, wipfrag_esen_size_mm,
+                    wipfrag_esen_passing_pct)
+p_wip_e[(x_grid < wipfrag_esen_size_mm.min())
+        | (x_grid > wipfrag_esen_size_mm.max())] = np.nan
 ws = wb.add_worksheet("KCO_Comparison_Curves")
 cmp_cols = [
     ("x (mm)", x_grid),
@@ -1307,6 +1476,7 @@ cmp_cols = [
     ("KCO* class-envelope max (%)", p_env_max),
     ("WipFrag original (%)", p_wip_o),
     ("WipFrag adjusted - full cylinders (%)", p_wip_a),
+    ("WipFrag adjusted - Esen CZI (%)", p_wip_e),
 ]
 for j, (h, v) in enumerate(cmp_cols):
     _write_col(ws, j, h, v)
@@ -1322,6 +1492,8 @@ _write_col(ws, 12, "WipFrag original x (mm)", wipfrag_size_mm)
 _write_col(ws, 13, "WipFrag original y (%)", wipfrag_passing_pct)
 _write_col(ws, 15, "WipFrag adjusted x (mm)", wipfrag_adj_size_mm)
 _write_col(ws, 16, "WipFrag adjusted y (%)", wipfrag_adj_passing_pct)
+_write_col(ws, 45, "WipFrag adj Esen x (mm)", wipfrag_esen_size_mm)
+_write_col(ws, 46, "WipFrag adj Esen y (%)", wipfrag_esen_passing_pct)
 ws.set_column(9, 10, None, None, {"hidden": True})
 ch = _logx_scatter(
     "Fragment / Block Size Distribution -- VARENNE",
@@ -1418,17 +1590,31 @@ ch.add_series({
                "fill": {"color": "#FF4500"},
                "line": {"color": "#FF4500"}},
 })
+ch.add_series({
+    "name": "WipFrag adjusted \u2013 Esen CZI",
+    "categories": ["KCO_Comparison_Curves", 1, 45,
+                   len(wipfrag_esen_size_mm), 45],
+    "values": ["KCO_Comparison_Curves", 1, 46,
+               len(wipfrag_esen_passing_pct), 46],
+    "line": {"color": "#7030A0", "width": 1.0, "dash_type": "dash"},
+    "marker": {"type": "triangle", "size": 5,
+               "fill": {"color": "#7030A0"},
+               "line": {"color": "#7030A0"}},
+})
 _add_pow10_labels(ws, ch, "KCO_Comparison_Curves", 18, [0, 1, 2, 3])
 ch.set_legend({"font": {"size": 8}, "overlay": True,
                "layout": {"x": 0.03, "y": 0.04,
-                          "width": 0.42, "height": 0.28},
-               "delete_series": list(range(2, 26)) + [30]})
+                          "width": 0.42, "height": 0.32},
+               "delete_series": list(range(2, 26)) + [31]})
 ws.insert_chart("V2", ch)
 ws.insert_textbox(12, 21,
                   "Crushed-zone correction:\n"
                   "V_f = 4\u03c0r_c\u00b2H\n"
-                  f"P_f = {P_FINES_PCT:.2f}%",
-                  {"width": 150, "height": 48, "x_offset": 80,
+                  f"Aubertin: r_c={R_C:.3f} m, P_f={P_FINES_PCT:.2f}%\n"
+                  f"Esen CZI: r_c={R_C_ESEN:.3f} m, "
+                  f"P_f={P_FINES_ESEN_PCT:.2f}%\n"
+                  f"(E_d={E_D_GPA:.0f} GPa assumed)",
+                  {"width": 190, "height": 72, "x_offset": 80,
                    "font": {"size": 8},
                    "fill": {"color": "#FFFFFF"},
                    "line": {"color": "#999999"}})
