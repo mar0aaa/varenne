@@ -311,24 +311,25 @@ def jps_from_joint_spacing(mean_joint_spacing_m: float,
     """
     Return the joint plane spacing rating JPS.
 
-    Classification as it appears in the KCO literature (Cunningham 1987
-    variant with the drilling-pattern reference length sqrt(B*S)):
+    Classification as given on the supervisor's reference slide
+    (drilling-pattern reference length sqrt(B*S)):
 
         JPS = 10   if Sj < 0.1 m
         JPS = 20   if 0.1 m <= Sj < 0.3 m
-        JPS = 50   if 0.3 m <= Sj < 0.95*sqrt(B*S)
-        JPS = 80   if Sj >= 0.95*sqrt(B*S)
+        JPS = 80   if 0.3 m <= Sj < 0.95*sqrt(B*S)
+        JPS = 50   if Sj > sqrt(B*S)
 
     Boundary handling (explicit, documented choices):
-      - all interval boundaries are closed on the left (>=) and open on
-        the right (<), so every spacing maps to exactly one rating;
-      - the published texts leave the band between 0.95*sqrt(B*S) and
-        sqrt(B*S) ambiguous ("> oversize" vs ">= 0.95 sqrt(BS)"). Here
-        the 0.95*sqrt(B*S) threshold is used as the lower edge of the
-        JPS = 80 class, which removes the gap. This is a selected
-        modelling assumption;
+      - the defined interval boundaries are closed on the left (>=) and
+        open on the right (<), so every spacing in a defined band maps
+        to exactly one rating;
+      - the slide leaves the band 0.95*sqrt(B*S) <= Sj <= sqrt(B*S)
+        UNDEFINED. No rating is invented for it: a ValueError is raised
+        so the case is flagged explicitly instead of being silently
+        assigned to JPS 50 or 80;
       - if 0.95*sqrt(B*S) <= 0.3 m (a very tight drilling pattern), the
-        JPS = 50 class is empty and spacings >= 0.3 m rate 80.
+        JPS = 80 class is empty and spacings in [0.3, sqrt(B*S)] fall
+        in the undefined band (flagged).
 
     Args:
         mean_joint_spacing_m: Mean joint spacing Sj (m). In this project
@@ -356,8 +357,16 @@ def jps_from_joint_spacing(mean_joint_spacing_m: float,
     if mean_joint_spacing_m < 0.3:
         return 20
     if mean_joint_spacing_m < upper:
+        return 80
+    if mean_joint_spacing_m > pattern_length:
         return 50
-    return 80
+    raise ValueError(
+        f"Sj = {mean_joint_spacing_m:.6g} m falls in the undefined JPS "
+        f"band [0.95*sqrt(B*S), sqrt(B*S)] = [{upper:.6g}, "
+        f"{pattern_length:.6g}] m. The reference classification assigns "
+        "no rating in this interval; no rule is invented. Confirm the "
+        "intended JPS before using this value."
+    )
 
 
 def joint_factor(jps: float,
@@ -1512,10 +1521,11 @@ class KCOResult:
         lines.append("")
         lines.append("Notes (methodological assumptions to confirm):")
         lines.append(
-            "  1. JPS classification: the literature leaves an ambiguity "
-            "between\n     0.95*sqrt(B*S) and sqrt(B*S); using "
-            "0.95*sqrt(B*S) as the lower\n     threshold of the JPS = 80 "
-            "class is a selected boundary-handling\n     assumption."
+            "  1. JPS classification (supervisor's slide): 10 if Sj<0.1, "
+            "20 if\n     0.1<=Sj<0.3, 80 if 0.3<=Sj<0.95*sqrt(B*S), 50 if "
+            "Sj>sqrt(B*S).\n     The band 0.95*sqrt(B*S)<=Sj<=sqrt(B*S) is "
+            "undefined and raises\n     an error rather than being assigned "
+            "an invented rating."
         )
         lines.append(
             "  2. JPA 3-D tolerance = 45.0 degrees by default. This "
