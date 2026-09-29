@@ -140,6 +140,8 @@ def load_wipfrag_curve(xlsx_path: str, sheet_name: str, curve_name: str):
 B_REAL = 3.4
 S_REAL = 4.1
 H_REAL = 14.0
+STEMMING_REAL = 2.13
+LC_REAL = H_REAL - STEMMING_REAL
 
 design = BlastDesign(
     name="VARENNE (real geometry + corrected intact-rock properties)",
@@ -148,18 +150,18 @@ design = BlastDesign(
     spacing_m=S_REAL,
     bench_height_m=H_REAL,
     subdrill_m=0.0,
-    total_charge_m=14.0,
+    total_charge_m=LC_REAL,
     bottom_charge_m=0.0,
-    column_charge_m=0.0,
-    drill_accuracy_sd_m=0.3,                 # ESTIMATE
+    column_charge_m=LC_REAL,
+    drill_accuracy_sd_m=0.1,                 # ESTIMATE
     charge_per_hole_kg=165.0,
     powder_factor_reported_kg_m3=0.8,
     powder_factor_mode="reported",
-    s_anfo_pct=100.0,                        # ESTIMATE
+    s_anfo_pct=77.0,                         # RWS = 77
     explosive_name="Dyno Nobel XL900 emulsion",
-    rock_density_kg_m3=2700.0,               # professor-provided
-    ucs_mpa=200.0,                           # professor-provided
-    youngs_modulus_gpa=60.0,                 # professor-provided
+    rock_density_kg_m3=2700.0,               
+    ucs_mpa=200.0,                            
+    youngs_modulus_gpa=40.0,                 # 
     rock_mass_case="jointed",
     jpa_case="strike_perpendicular_to_face", # ESTIMATE
     timing_scatter_factor_ns=1.0,
@@ -170,7 +172,7 @@ print("=" * 70)
 print("INPUT PROVENANCE -- see run_kco_varenne_demo.py header for full list")
 print("=" * 70)
 print("REAL: B=3.4 m, S=4.1 m, H=14.0 m, D=114 mm, Q=165 kg, q=0.8 kg/m3")
-print("INTACT ROCK (professor-provided): rho=2700 kg/m3, UCS=200 MPa, E=60 GPa")
+print("INTACT ROCK (professor-provided): rho=2700 kg/m3, UCS=200 MPa, E=40 GPa")
 print("ESTIMATED (unconfirmed): drill_accuracy_sd_m, s_anfo_pct, jpa_case")
 print("Observed but NOT usable as a curve: 3 oversize boulders ~1 m each")
 print()
@@ -375,7 +377,7 @@ wipfrag_ann_size_mm, wipfrag_ann_passing_pct = _wipfrag_adjusted(
 # may be used as the DYNAMIC modulus E_d is unconfirmed. Edit E_D_GPA here
 # only -- the original input E is not touched.
 # ======================================================================
-E_D_GPA = 60.0          # GPa -- PROVISIONAL assumption (see note above)
+E_D_GPA = 80.0          # GPa -- user-provided dynamic modulus
 NU_D = 0.25             # dynamic Poisson ratio (confirmed by Prof. Aubertin)
 P_B_MPA = P_CRUSH_MPA   # borehole pressure rho_e D^2 / 8 = 3037.5 MPa
 K_ESEN_MPA = E_D_GPA * 1e3 / (1.0 + NU_D)          # MPa
@@ -428,6 +430,7 @@ ax.set_title("Fragment / Block Size Distribution -- VARENNE\n"
              "envelope) vs WipFrag original et ajusté - fines",
              fontsize=12, fontweight="bold")
 ax.set_ylim(0, 100)
+ax.set_yticks(np.arange(0, 101, 10))
 ax.grid(True, which="both", linestyle="--", alpha=0.4)
 ax.legend(loc="upper left", fontsize=9)
 fig.tight_layout()
@@ -484,6 +487,7 @@ ax2.set_title("Fragment / Block Size Distribution -- VARENNE\n"
               "envelope) vs WipFrag original / adjusted",
               fontsize=12, fontweight="bold")
 ax2.set_ylim(0, 100)
+ax2.set_yticks(np.arange(0, 101, 10))
 ax2.grid(True, which="both", linestyle="--", alpha=0.4)
 ax2.legend(loc="upper left", fontsize=9)
 fig2.tight_layout()
@@ -545,6 +549,7 @@ ax3.set_title("Fragment / Block Size Distribution -- VARENNE\n"
               "(Aubertin vs Esen CZI crushed-zone)",
               fontsize=12, fontweight="bold")
 ax3.set_ylim(0, 100)
+ax3.set_yticks(np.arange(0, 101, 10))
 ax3.grid(True, which="both", linestyle="--", alpha=0.4)
 ax3.legend(loc="upper left", fontsize=9)
 fig3.tight_layout()
